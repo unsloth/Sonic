@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Sonic Dash JS - High Speed Clone</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #4A90E2; /* Sky Blue */
+            --primary: #FFD700; /* Ring Gold */
+            --secondary: #E3000F; /* Sonic Shoe Red */
+            --dark: #002D72; /* Deep Blue */
+            --text: #FFFFFF;
+            --danger: #ff4c4c;
+            --grass: #228B22;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        body { background-color: var(--bg-color); color: var(--text); font-family: 'Impact', 'Courier New', sans-serif; overflow: hidden; width: 100vw; height: 100vh; touch-action: none; }
+        #game-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        
+        /* UI Layers */
+        .ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; display: flex; flex-direction: column; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+        .interactive { pointer-events: auto; }
+        .hidden { display: none !important; }
+        
+        /* Orientation Warning */
+        #orientation-warning { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg-color); z-index: 9999; display: flex; align-items: center; justify-content: center; text-align: center; padding: 20px; flex-direction: column; }
+        @media screen and (orientation: landscape) { #orientation-warning { display: none; } }
+
+        /* Menus */
+        .menu-screen { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(0, 45, 114, 0.85); backdrop-filter: blur(5px); }
+        h1 { font-size: 4rem; color: var(--primary); text-transform: uppercase; text-shadow: 3px 3px 0 var(--dark), -1px -1px 0 var(--dark), 0 0 15px var(--primary); margin-bottom: 2rem; letter-spacing: 4px; font-style: italic; }
+        .btn { background: var(--secondary); border: 4px solid #fff; color: white; padding: 15px 40px; font-size: 1.4rem; font-weight: bold; cursor: pointer; text-transform: uppercase; transition: all 0.2s; margin: 10px; border-radius: 20px; box-shadow: 0 6px 0 var(--dark); font-family: inherit; font-style: italic; }
+        .btn:hover { background: var(--primary); color: var(--dark); border-color: var(--dark); box-shadow: 0 6px 0 var(--secondary); transform: translateY(-2px); }
+        .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 var(--dark); }
+        .btn-danger { background: var(--danger); border-color: #fff; }
+
+        /* Editor UI */
+        #editor-ui { flex-direction: row; justify-content: space-between; padding: 20px; background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, transparent 15%, transparent 85%, rgba(0,0,0,0.8) 100%); }
+        .editor-toolbar { display: flex; gap: 10px; align-items: center; background: rgba(0, 45, 114, 0.9); padding: 10px; border-radius: 12px; border: 2px solid var(--primary); }
+        .tool-btn { width: 55px; height: 55px; background: var(--bg-color); border: 2px solid #fff; border-radius: 8px; cursor: pointer; display: flex; justify-content: center; align-items: center; color: white; font-size: 11px; font-weight: bold; font-family: inherit; }
+        .tool-btn.active { background: var(--grass); border-color: var(--primary); box-shadow: 0 0 15px var(--primary); transform: scale(1.1); }
+        .top-bar { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; pointer-events: none; }
+
+        /* Dialogs */
+        .dialog { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--dark); padding: 30px; border: 4px solid var(--primary); border-radius: 20px; z-index: 100; display: flex; flex-direction: column; gap: 15px; width: 400px; max-width: 90%; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
+        input[type="text"], input[type="number"] { padding: 12px; background: rgba(255,255,255,0.9); border: 2px solid var(--primary); color: var(--dark); border-radius: 8px; font-family: inherit; font-size: 1.2rem; font-weight: bold; }
+        
+        #error-toast { position: fixed; top: 20px; right: 20px; background: var(--danger); color: white; padding: 15px 25px; border-radius: 8px; z-index: 9999; transform: translateX(150%); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); box-shadow: 0 5px 15px rgba(0,0,0,0.5); font-weight: bold; border: 2px solid #fff; }
+        #error-toast.show { transform: translateX(0); }
+    </style>
+</head>
+<body>
+    <div id="orientation-warning">
+        <h2>Please Rotate Device</h2>
+        <p>This game is strictly horizontal.</p>
+    </div>
+
+    <div id="game-container"></div>
+    <div id="error-toast">Error!</div>
+
+    <!-- Main Menu UI -->
+    <div id="main-menu" class="ui-layer interactive">
+        <div class="menu-screen">
+            <h1>Sonic Dash</h1>
+            <button class="btn" onclick="gameApp.startGame('default')">Play Fast Level</button>
+            <button class="btn" onclick="gameApp.showLevelBrowser()">Level Browser</button>
+            <button class="btn" onclick="gameApp.startEditor()">Level Editor</button>
+        </div>
+    </div>
+
+    <!-- Level Browser UI -->
+    <div id="level-browser" class="ui-layer interactive hidden">
+        <div class="menu-screen" style="justify-content: flex-start; padding-top: 5vh;">
+            <h2 style="color:var(--primary); margin-bottom: 20px; font-size: 2.5rem; font-style: italic;">Zones</h2>
+            <div id="level-list" style="width: 80%; max-height: 50vh; overflow-y: auto; background: rgba(0,0,0,0.5); border: 2px solid var(--primary); border-radius: 12px; margin-bottom: 20px; padding: 10px;">
+                <!-- Populated by JS -->
+            </div>
+            <div style="display:flex; gap: 10px; flex-wrap: wrap; justify-content: center;">
+                <label class="btn">
+                    Import Zone JSON
+                    <input type="file" id="import-json" accept=".json" style="display: none;" onchange="gameApp.importLevel(event)">
+                </label>
+                <button class="btn btn-danger" onclick="gameApp.showMainMenu()">Back</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Editor UI -->
+    <div id="editor-ui" class="ui-layer hidden">
+        <div class="top-bar interactive">
+            <button class="btn" style="padding: 10px 20px; font-size: 1rem;" onclick="gameApp.exitEditor()">Exit</button>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn" style="padding: 10px 20px; font-size: 1rem;" onclick="gameApp.openEditorSettings()">Settings</button>
+                <button class="btn" style="padding: 10px 20px; font-size: 1rem;" onclick="gameApp.toggleLivePreview()" id="btn-preview">Test Zone</button>
+                <button class="btn" style="padding: 10px 20px; font-size: 1rem; background: var(--primary); color: var(--dark);" onclick="gameApp.saveAndExport()">Save & Export</button>
+            </div>
+        </div>
+        
+        <div style="flex: 1;"></div>
+        
+        <div class="editor-toolbar interactive" style="align-self: center; margin-bottom: 10px;">
+            <button class="tool-btn active" onclick="gameApp.setTool('block', this)" style="color:#000;">Block</button>
+            <button class="tool-btn" onclick="gameApp.setTool('spike', this)" style="color:#000;">Spike</button>
+            <button class="tool-btn" onclick="gameApp.setTool('spring', this)" style="color:#000;">Spring</button>
+            <button class="tool-btn" onclick="gameApp.setTool('ring', this)" style="color:#000; background:var(--primary);">Ring</button>
+            <button class="tool-btn" onclick="gameApp.setTool('erase', this)" style="background: var(--danger);">Erase</button>
+        </div>
+    </div>
+
+    <!-- Editor Settings Dialog -->
+    <div id="editor-settings" class="ui-layer interactive hidden">
+        <div class="dialog">
+            <h3 style="color:var(--primary); font-style: italic; font-size: 2rem;">Zone Settings</h3>
+            <input type="text" id="level-name" placeholder="Zone Name" value="Green Hill Dash">
+            <label style="text-align: left; font-size: 1rem; color: white;">Game Speed (Multiplier):</label>
+            <input type="number" id="level-speed" step="0.1" min="0.5" max="3" value="1.0">
+            <div style="display: flex; gap: 10px; justify-content: space-between; margin-top: 10px;">
+                <button class="btn btn-danger" style="flex:1; padding: 10px;" onclick="document.getElementById('editor-settings').classList.add('hidden')">Cancel</button>
+                <button class="btn" style="flex:1; padding: 10px;" onclick="gameApp.saveEditorSettings()">Apply</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * GLOBAL ERROR HANDLING
+         */
+        window.onerror = function(msg, url, lineNo, columnNo, error) {
+            showError(`Error: ${msg} (Line: ${lineNo})`);
+            return false;
+        };
+
+        function showError(msg) {
+            const toast = document.getElementById('error-toast');
+            toast.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        /**
+         * AUDIO SYNTH FOR SONIC SFX
+         */
+        class AudioSynth {
+            constructor() {
+                try {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    this.masterGain = this.ctx.createGain();
+                    this.masterGain.connect(this.ctx.destination);
+                    this.masterGain.gain.value = 0.5;
+                } catch(e) { console.warn("Web Audio API not supported"); }
+            }
+
+            playSFX(type) {
+                if (!this.ctx) return;
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+                
+                const time = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+
+                if (type === 'ring') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(1200, time);
+                    osc.frequency.linearRampToValueAtTime(1800, time + 0.1);
+                    gain.gain.setValueAtTime(0.3, time);
+                    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.3);
+                    osc.start(time); osc.stop(time + 0.3);
+                } else if (type === 'jump') {
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(150, time);
+                    osc.frequency.linearRampToValueAtTime(300, time + 0.2);
+                    gain.gain.setValueAtTime(0.15, time);
+                    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
+                    osc.start(time); osc.stop(time + 0.2);
+                } else if (type === 'spring') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(300, time);
+                    osc.frequency.linearRampToValueAtTime(700, time + 0.3);
+                    gain.gain.setValueAtTime(0.2, time);
+                    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.3);
+                    osc.start(time); osc.stop(time + 0.3);
+                } else if (type === 'hurt') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(150, time);
+                    osc.frequency.linearRampToValueAtTime(50, time + 0.3);
+                    gain.gain.setValueAtTime(0.3, time);
+                    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.3);
+                    osc.start(time); osc.stop(time + 0.3);
+                }
+            }
+        }
+
+        const sfx = new AudioSynth();
+
+        /**
+         * DEFAULT LEVEL DEFINITION - Fast Paced
+         */
+        const DEFAULT_LEVEL = {
+            name: "Green Hill Dash",
+            speed: 1.0,
+            objects:[
+                {t:'ring', x:300, y:-32}, {t:'ring', x:332, y:-32}, {t:'ring', x:364, y:-32},
+                {t:'block', x:500, y:-32}, {t:'spring', x:500, y:-64},
+                {t:'ring', x:600, y:-128}, {t:'ring', x:632, y:-160}, {t:'ring', x:664, y:-128},
+                {t:'spike', x:800, y:-32}, {t:'spike', x:832, y:-32},
+                {t:'block', x:1000, y:-32}, {t:'block', x:1000, y:-64}, {t:'block', x:1032, y:-64}, {t:'block', x:1064, y:-64},
+                {t:'ring', x:1032, y:-96}, {t:'ring', x:1064, y:-96},
+                {t:'spike', x:1032, y:-32}, {t:'spike', x:1064, y:-32},
+                {t:'spring', x:1200, y:-32},
+                {t:'ring', x:1300, y:-160}, {t:'ring', x:1350, y:-160}, {t:'ring', x:1400, y:-160},
+                {t:'block', x:1500, y:-32}, {t:'block', x:1532, y:-64}, {t:'block', x:1564, y:-96},
+                {t:'spring', x:1564, y:-128},
+                {t:'spike', x:1700, y:-32}, {t:'spike', x:1732, y:-32}, {t:'spike', x:1764, y:-32}
+            ]
+        };
+
+        const Utils = {
+            sanitizeLevel(jsonString) {
+                try {
+                    const parsed = JSON.parse(jsonString);
+                    if (!parsed.name || !Array.isArray(parsed.objects)) throw new Error("Invalid structure");
+                    parsed.speed = parseFloat(parsed.speed) || 1.0;
+                    parsed.objects = parsed.objects.map(o => ({
+                        t: String(o.t),
+                        x: Math.round(Number(o.x)),
+                        y: Math.round(Number(o.y))
+                    }));
+                    return parsed;
+                } catch(e) { throw new Error("Failed to parse/sanitize level file."); }
+            },
+            saveLocal(key, data) {
+                try { localStorage.setItem(key, JSON.stringify(data)); } catch(e) { showError("Storage full or blocked."); }
+            },
+            loadLocal(key) {
+                try { return JSON.parse(localStorage.getItem(key)); } catch(e) { return null; }
+            },
+            getCustomLevels() { return this.loadLocal('sonic_custom_levels') ||[]; },
+            saveCustomLevel(levelObj) {
+                const levels = this.getCustomLevels();
+                const idx = levels.findIndex(l => l.name === levelObj.name);
+                if (idx >= 0) levels[idx] = levelObj;
+                else levels.push(levelObj);
+                this.saveLocal('sonic_custom_levels', levels);
+            }
+        };
+
+        /**
+         * SCENES
+         */
+        class BootScene extends Phaser.Scene {
+            constructor() { super('BootScene'); }
+            
+            preload() {
+                let g = this.make.graphics({ x:0, y:0, add:false });
+
+                // Ground Tile (Checkered dirt/grass)
+                g.fillStyle(0x8B4513); g.fillRect(0, 0, 32, 32);
+                g.fillStyle(0x654321); g.fillRect(16, 0, 16, 16); g.fillRect(0, 16, 16, 16);
+                g.fillStyle(0x228B22); g.fillRect(0, 0, 32, 8); // Grass top
+                g.generateTexture('block', 32, 32);
+
+                // Spike
+                g.clear();
+                g.fillStyle(0xAAAAAA);
+                g.beginPath(); g.moveTo(16, 0); g.lineTo(32, 32); g.lineTo(0, 32); g.closePath(); g.fillPath();
+                g.lineStyle(2, 0xFFFFFF); g.moveTo(16, 0); g.lineTo(16, 32); g.strokePath();
+                g.generateTexture('spike', 32, 32);
+
+                // Spring
+                g.clear();
+                g.fillStyle(0xE3000F); g.fillRect(4, 16, 24, 16); // Red base
+                g.fillStyle(0xFFD700); g.fillRect(6, 8, 20, 8); // Yellow spring
+                g.fillStyle(0x888888); g.fillRect(2, 4, 28, 4); // Gray pad
+                g.generateTexture('spring', 32, 32);
+
+                // Animated Ring (4 frames generated as separate textures)
+                for(let i=0; i<4; i++) {
+                    g.clear();
+                    let w = 12 - Math.abs(i-1)*6; 
+                    if(w < 2) w = 2;
+                    g.lineStyle(4, 0xFFD700);
+                    g.strokeEllipse(16, 16, w*2, 20);
+                    // inner shine
+                    g.lineStyle(1, 0xFFFFFF);
+                    g.strokeEllipse(16, 16, w*2 - 2, 18);
+                    g.generateTexture('ring'+i, 32, 32);
+                }
+
+                // Animated Player (Sonic style blob - 4 run frames)
+                for(let i=0; i<4; i++) {
+                    g.clear();
+                    // Blue Body
+                    g.fillStyle(0x0044CC); g.fillCircle(16, 16, 10);
+                    // Spikes
+                    g.fillTriangle(6, 16, 2, 8, 16, 10);
+                    g.fillTriangle(10, 8, 6, 0, 20, 6);
+                    // Eye
+                    g.fillStyle(0xFFFFFF); g.fillCircle(20, 14, 4);
+                    g.fillStyle(0x000000); g.fillCircle(22, 14, 1.5);
+                    // Shoes
+                    g.fillStyle(0xE3000F);
+                    if(i%2===0) { g.fillRect(8, 26, 8, 6); g.fillRect(20, 24, 8, 6); }
+                    else { g.fillRect(12, 24, 8, 6); g.fillRect(16, 26, 8, 6); }
+                    g.generateTexture('player'+i, 32, 32);
+                }
+
+                // Ball spin mode
+                g.clear();
+                g.fillStyle(0x0044CC); g.fillCircle(16, 16, 12);
+                g.lineStyle(3, 0x66CCFF); g.strokeCircle(16, 16, 10);
+                g.generateTexture('player_spin', 32, 32);
+            }
+
+            create() {
+                // Register Global Animations using our generated frames
+                this.anims.create({
+                    key: 'run',
+                    frames:[ {key:'player0'}, {key:'player1'}, {key:'player2'}, {key:'player3'} ],
+                    frameRate: 18,
+                    repeat: -1
+                });
+                this.anims.create({
+                    key: 'ring_anim',
+                    frames:[ {key:'ring0'}, {key:'ring1'}, {key:'ring2'}, {key:'ring3'} ],
+                    frameRate: 10,
+                    repeat: -1
+                });
+
+                if (!Utils.loadLocal('sonic_custom_levels')) {
+                    Utils.saveLocal('sonic_custom_levels', [DEFAULT_LEVEL]);
+                }
+            }
+        }
+
+        // Shared Logic for rendering and physics
+        class LevelCore extends Phaser.Scene {
+            constructor(key) { super(key); }
+            
+            init(data) {
+                this.levelData = data.level || DEFAULT_LEVEL;
+                this.isEditor = data.isEditor || false;
+                this.testMode = false;
+                this.gridSize = 32;
+                // SPEED: Highly accelerated compared to standard GD clone
+                this.baseSpeed = 750 * (this.levelData.speed || 1); 
+                this.groundY = this.scale.height - 128; 
+            }
+
+            create() {
+                this.matter.world.setGravity(0, 5); // Snappy gravity
+                this.cameras.main.setBackgroundColor('#4A90E2'); // Sonic Sky
+
+                this.levelObjects = [];
+                this.ringsToRemove =[];
+                this.objectGroup = this.add.group();
+
+                // Static Ground
+                this.ground = this.add.tileSprite(0, this.groundY + 32, this.scale.width * 200, 64, 'block');
+                this.ground.setOrigin(0, 0.5);
+                this.groundBody = this.matter.add.rectangle(this.scale.width * 100, this.groundY + 32, this.scale.width * 200, 64, { isStatic: true, friction: 0 });
+                
+                // Editor Line
+                let g = this.add.graphics();
+                g.lineStyle(2, 0xFFFFFF, 0.5);
+                g.beginPath(); g.moveTo(0, this.groundY); g.lineTo(this.scale.width * 200, this.groundY); g.strokePath();
+
+                this.loadLevelObjects();
+
+                if (!this.isEditor || this.testMode) {
+                    this.startPlayMode();
+                }
+            }
+
+            loadLevelObjects() {
+                this.objectGroup.clear(true, true);
+                this.levelObjects =[];
+                this.levelData.objects.forEach(obj => { this.createObject(obj.t, obj.x, obj.y); });
+            }
+
+            createObject(type, x, y) {
+                const actualY = this.groundY + y + 16;
+                let tex = type === 'ring' ? 'ring0' : type;
+                let sprite;
+                
+                if (!this.isEditor || this.testMode) {
+                    let bodyOpts = { isStatic: true, friction: 0, restitution: 0 };
+                    
+                    if (type === 'spike') {
+                        const verts =[{x: 16, y: 8}, {x: 28, y: 32}, {x: 4, y: 32}];
+                        sprite = this.matter.add.sprite(x, actualY, tex, null, { shape: { type: 'fromVerts', verts: verts }, isStatic: true, isSensor: true, label: 'spike' });
+                    } else if (type === 'spring') {
+                        sprite = this.matter.add.sprite(x, actualY, tex, null, { isStatic: true, isSensor: true, label: 'spring' });
+                    } else if (type === 'ring') {
+                        sprite = this.matter.add.sprite(x, actualY, tex, null, { isStatic: true, isSensor: true, label: 'ring' });
+                        sprite.play('ring_anim');
+                    } else {
+                        sprite = this.matter.add.sprite(x, actualY, tex, null, bodyOpts);
+                        sprite.body.label = 'block';
+                    }
+                } else {
+                    sprite = this.add.sprite(x, actualY, tex);
+                    if(type === 'ring') sprite.play('ring_anim');
+                }
+                
+                sprite.objType = type;
+                sprite.jsonY = y;
+                this.levelObjects.push(sprite);
+                this.objectGroup.add(sprite);
+                return sprite;
+            }
+
+            startPlayMode() {
+                this.rings = 0;
+                this.invulnerable = false;
+
+                // Player Hitbox (Slightly smaller for forgiving fast platforming)
+                this.player = this.matter.add.sprite(100, this.groundY - 16, 'player0', null, {
+                    shape: { type: 'rectangle', width: 24, height: 24 },
+                    friction: 0, frictionAir: 0, restitution: 0, label: 'player'
+                });
+                this.player.setFixedRotation();
+                this.playerSprite = this.add.sprite(0, 0, 'player0');
+                this.player.setVisible(false); 
+
+                this.isDead = false;
+                this.onGround = true;
+                this.jumpQueued = false;
+
+                // UI
+                if(!this.isEditor || this.testMode) {
+                    this.ringText = this.add.text(20, 20, 'RINGS: 0', { 
+                        fontFamily: 'Impact', fontSize: '32px', fill: '#FFD700', 
+                        stroke: '#002D72', strokeThickness: 6, fontStyle: 'italic' 
+                    }).setScrollFactor(0);
+                    this.ringText.setDepth(100);
+                }
+
+                // Inputs
+                this.input.on('pointerdown', () => this.jumpQueued = true);
+                this.input.on('pointerup', () => this.jumpQueued = false);
+                this.input.keyboard.on('keydown-SPACE', () => this.jumpQueued = true);
+                this.input.keyboard.on('keyup-SPACE', () => this.jumpQueued = false);
+
+                // Dynamic Camera Offset to look ahead
+                this.cameras.main.startFollow(this.player, true, 1, 1, -this.scale.width/3, 0);
+                this.cameras.main.setBounds(0, -2000, 999999, this.scale.height + 2000);
+
+                // Collision
+                this.matter.world.on('collisionstart', (event) => {
+                    event.pairs.forEach(pair => {
+                        const { bodyA, bodyB } = pair;
+                        const labels =[bodyA.label, bodyB.label];
+                        
+                        if (labels.includes('player')) {
+                            const other = bodyA.label === 'player' ? bodyB : bodyA;
+                            
+                            if (other.label === 'ring') {
+                                if(!this.ringsToRemove.includes(other.gameObject)) {
+                                    this.ringsToRemove.push(other.gameObject);
+                                    this.rings++;
+                                    this.ringText.setText('RINGS: ' + this.rings);
+                                    sfx.playSFX('ring');
+                                }
+                            } else if (other.label === 'spring') {
+                                this.player.setVelocityY(-22); // Massive boost
+                                sfx.playSFX('spring');
+                                this.jumpQueued = false; // Prevent jumping right after spring
+                            } else if (other.label === 'spike') {
+                                this.hitObstacle(false); // non-crush
+                            } else if (other.label === 'block') {
+                                const normal = pair.collision.normal;
+                                const isVertical = Math.abs(normal.y) > Math.abs(normal.x);
+                                const playerBottom = this.player.y + 12;
+                                const otherTop = other.position.y - (other.bounds.max.y - other.bounds.min.y)/2;
+                                
+                                // Frontal wall collision
+                                if (playerBottom > otherTop + 8 && !isVertical) {
+                                    this.hitObstacle(true); // Crush -> instant death
+                                }
+                            }
+                        }
+                    });
+                });
+            }
+
+            hitObstacle(isCrush) {
+                if (this.isDead) return;
+                
+                if (isCrush || this.rings === 0) {
+                    this.die();
+                } else if (!this.invulnerable) {
+                    // Lose rings, survive spike
+                    this.rings = 0;
+                    this.ringText.setText('RINGS: 0');
+                    sfx.playSFX('hurt');
+                    this.invulnerable = true;
+                    this.player.setVelocityY(-12);
+                    
+                    // Visual scatter
+                    for(let i=0; i<6; i++) {
+                        let r = this.add.sprite(this.player.x, this.player.y, 'ring0');
+                        r.play('ring_anim');
+                        this.tweens.add({
+                            targets: r, x: this.player.x + Phaser.Math.Between(-150, 150), y: this.player.y + Phaser.Math.Between(-150, 0),
+                            alpha: 0, duration: 800, ease: 'Power1', onComplete: () => r.destroy()
+                        });
+                    }
+
+                    // Blink
+                    this.tweens.add({
+                        targets: this.playerSprite, alpha: 0.2, yoyo: true, repeat: 6, duration: 100,
+                        onComplete: () => { this.invulnerable = false; this.playerSprite.alpha = 1; }
+                    });
+                }
+            }
+
+            die() {
+                if (this.isDead) return;
+                this.isDead = true;
+                sfx.playSFX('hurt');
+                this.player.setVelocity(0, 0);
+                this.player.setStatic(true);
+                
+                // Classic pop out death
+                this.playerSprite.setTexture('player_spin');
+                this.tweens.add({ targets: this.playerSprite, y: this.playerSprite.y - 300, duration: 1000, ease: 'Power2' });
+                this.cameras.main.shake(200, 0.02);
+                
+                setTimeout(() => {
+                    if (this.isEditor) this.stopTestMode();
+                    else this.scene.restart();
+                }, 1000);
+            }
+
+            update(time, delta) {
+                if (this.isEditor && !this.testMode) {
+                    this.editorUpdate();
+                    return;
+                }
+
+                if (this.isDead) {
+                    this.playerSprite.rotation += 0.2;
+                    return;
+                }
+
+                // Process collected rings
+                if(this.ringsToRemove.length > 0) {
+                    this.ringsToRemove.forEach(r => {
+                        if(r && r.active) {
+                            // remove from tracking array as well
+                            this.levelObjects = this.levelObjects.filter(obj => obj !== r);
+                            r.destroy();
+                        }
+                    });
+                    this.ringsToRemove =[];
+                }
+
+                // Sync Visual
+                this.playerSprite.x = this.player.x;
+                this.playerSprite.y = this.player.y;
+
+                // Constant high-speed run
+                this.player.setVelocityX(this.baseSpeed / 60);
+
+                // Ground Check Raycast
+                const rayStart = { x: this.player.x, y: this.player.y };
+                const rayEnd = { x: this.player.x, y: this.player.y + 15 };
+                const bodies = this.matter.world.getAllBodies().filter(b => b.label === 'block' || b === this.groundBody);
+                const raycast = Phaser.Physics.Matter.Matter.Query.ray(bodies, rayStart, rayEnd);
+                
+                this.onGround = raycast.length > 0;
+
+                // Jump logic
+                if (this.jumpQueued && this.onGround) {
+                    this.player.setVelocityY(-15);
+                    this.onGround = false;
+                    sfx.playSFX('jump');
+                }
+
+                // Animations
+                if (!this.onGround) {
+                    this.playerSprite.setTexture('player_spin');
+                    this.playerSprite.anims.stop();
+                    this.playerSprite.rotation += 0.4;
+                } else {
+                    this.playerSprite.rotation = 0;
+                    this.playerSprite.anims.play('run', true);
+                }
+                
+                // Win Condition
+                if (this.levelObjects.length > 0) {
+                    const lastObj = this.levelObjects[this.levelObjects.length - 1];
+                    if (this.player.x > lastObj.x + 800) {
+                        this.win();
+                    }
+                }
+            }
+
+            win() {
+                if (this.isDead) return;
+                this.isDead = true; 
+                this.player.setVelocity(0,0);
+                this.playerSprite.anims.stop();
+                this.playerSprite.rotation = 0;
+                
+                setTimeout(() => {
+                    alert(`ZONE CLEARED!\nRings Collected: ${this.rings}`);
+                    if (this.isEditor) this.stopTestMode();
+                    else gameApp.showMainMenu();
+                }, 500);
+            }
+
+            editorUpdate() {
+                if (this.input.activePointer.isDown && this.input.activePointer.button === 1) { 
+                    this.cameras.main.scrollX -= (this.input.activePointer.x - this.input.activePointer.prevPosition.x);
+                    this.cameras.main.scrollY -= (this.input.activePointer.y - this.input.activePointer.prevPosition.y);
+                }
+            }
+        }
+
+        class PlayScene extends LevelCore { constructor() { super('PlayScene'); } }
+
+        class EditorScene extends LevelCore {
+            constructor() { super('EditorScene'); }
+
+            create() {
+                super.create();
+                this.currentTool = 'block';
+                this.cameras.main.setBounds(-2000, -2000, 999999, 999999); 
+                this.grid = this.add.grid(0, 0, 100000, 100000, 32, 32, 0x000000, 0, 0xFFFFFF, 0.2);
+                this.grid.setDepth(-1);
+
+                this.input.on('pointerdown', (pointer) => {
+                    if (this.testMode) return;
+                    if (pointer.y < 80 || pointer.y > this.scale.height - 80) return; 
+                    if (pointer.button === 1) return;
+
+                    let worldX = this.cameras.main.getWorldPoint(pointer.x, pointer.y).x;
+                    let worldY = this.cameras.main.getWorldPoint(pointer.x, pointer.y).y;
+
+                    let snapX = Math.floor(worldX / 32) * 32 + 16;
+                    let snapY = Math.floor(worldY / 32) * 32 + 16;
+                    let relY = snapY - this.groundY - 16;
+
+                    if (this.currentTool === 'erase' || pointer.button === 2) {
+                        this.eraseObjectAt(snapX, snapY);
+                    } else {
+                        this.placeObject(this.currentTool, snapX, relY);
+                    }
+                });
+
+                this.input.mouse.disableContextMenu();
+                this.cursors = this.input.keyboard.createCursorKeys();
+            }
+
+            update(time, delta) {
+                super.update(time, delta);
+                if (!this.testMode) {
+                    const camSpeed = 15;
+                    if (this.cursors.left.isDown) this.cameras.main.scrollX -= camSpeed;
+                    if (this.cursors.right.isDown) this.cameras.main.scrollX += camSpeed;
+                    if (this.cursors.up.isDown) this.cameras.main.scrollY -= camSpeed;
+                    if (this.cursors.down.isDown) this.cameras.main.scrollY += camSpeed;
+                }
+            }
+
+            placeObject(type, x, relY) {
+                this.eraseObjectAt(x, this.groundY + relY + 16);
+                this.levelData.objects.push({ t: type, x: x, y: relY });
+                this.levelData.objects.sort((a,b) => a.x - b.x);
+                this.createObject(type, x, relY);
+            }
+
+            eraseObjectAt(x, y) {
+                const tol = 5;
+                for (let i = 0; i < this.levelObjects.length; i++) {
+                    let obj = this.levelObjects[i];
+                    if (Math.abs(obj.x - x) < tol && Math.abs(obj.y - y) < tol) {
+                        obj.destroy();
+                        this.levelObjects.splice(i, 1);
+                        break;
+                    }
+                }
+                const relY = y - this.groundY - 16;
+                this.levelData.objects = this.levelData.objects.filter(o => !(Math.abs(o.x - x) < tol && Math.abs(o.y - relY) < tol));
+            }
+
+            startTestMode() {
+                this.testMode = true;
+                this.loadLevelObjects(); 
+                this.startPlayMode();
+            }
+
+            stopTestMode() {
+                this.testMode = false;
+                if(this.player) { this.player.destroy(); this.playerSprite.destroy(); }
+                if(this.ringText) { this.ringText.destroy(); }
+                this.cameras.main.stopFollow();
+                this.cameras.main.scrollX = 0;
+                this.cameras.main.scrollY = 0;
+                this.loadLevelObjects();
+                this.levelObjects.forEach(obj => { if(obj.body) this.matter.world.remove(obj.body); });
+            }
+        }
+
+
+        /**
+         * HTML UI CONTROLLER
+         */
+        const gameApp = {
+            game: null,
+            currentLevelData: null,
+
+            init() {
+                const config = {
+                    type: Phaser.AUTO,
+                    parent: 'game-container',
+                    scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.CENTER_BOTH },
+                    backgroundColor: '#4A90E2',
+                    physics: { default: 'matter', matter: { gravity: { y: 0 }, debug: false } },
+                    scene:[BootScene, PlayScene, EditorScene],
+                    pixelArt: true
+                };
+                this.game = new Phaser.Game(config);
+            },
+
+            hideAllUI() { document.querySelectorAll('.ui-layer').forEach(el => el.classList.add('hidden')); },
+
+            showMainMenu() {
+                this.hideAllUI();
+                document.getElementById('main-menu').classList.remove('hidden');
+                this.game.scene.stop('PlayScene');
+                this.game.scene.stop('EditorScene');
+            },
+
+            showLevelBrowser() {
+                this.hideAllUI();
+                document.getElementById('level-browser').classList.remove('hidden');
+                this.populateLevelBrowser();
+            },
+
+            populateLevelBrowser() {
+                const list = document.getElementById('level-list');
+                list.innerHTML = '';
+                const levels = Utils.getCustomLevels();
+                
+                if(levels.length === 0) {
+                    list.innerHTML = '<p style="color:#FFF;">No custom zones found.</p>';
+                    return;
+                }
+
+                levels.forEach((lvl, index) => {
+                    const div = document.createElement('div');
+                    div.style.cssText = "display:flex; justify-content:space-between; align-items:center; padding: 10px; border-bottom: 2px solid var(--primary); font-size: 1.2rem; font-weight: bold;";
+                    
+                    const name = document.createElement('span');
+                    name.textContent = lvl.name;
+                    
+                    const btnGroup = document.createElement('div');
+                    
+                    const playBtn = document.createElement('button');
+                    playBtn.className = 'btn'; playBtn.style.padding = '8px 15px'; playBtn.style.fontSize = '1rem'; playBtn.textContent = 'Play';
+                    playBtn.onclick = () => this.startGame(lvl);
+                    
+                    const editBtn = document.createElement('button');
+                    editBtn.className = 'btn'; editBtn.style.padding = '8px 15px'; editBtn.style.fontSize = '1rem'; editBtn.style.background = '#0044CC'; editBtn.textContent = 'Edit';
+                    editBtn.onclick = () => this.startEditor(lvl);
+
+                    btnGroup.appendChild(playBtn);
+                    btnGroup.appendChild(editBtn);
+                    div.appendChild(name);
+                    div.appendChild(btnGroup);
+                    list.appendChild(div);
+                });
+            },
+
+            startGame(levelData) {
+                this.hideAllUI();
+                if (levelData === 'default') levelData = Utils.getCustomLevels()[0] || DEFAULT_LEVEL;
+                this.currentLevelData = JSON.parse(JSON.stringify(levelData));
+                this.game.scene.start('PlayScene', { level: this.currentLevelData, isEditor: false });
+            },
+
+            startEditor(levelData) {
+                this.hideAllUI();
+                document.getElementById('editor-ui').classList.remove('hidden');
+                
+                if (!levelData) this.currentLevelData = { name: "New Zone", speed: 1.0, objects:[] };
+                else this.currentLevelData = JSON.parse(JSON.stringify(levelData));
+                
+                this.game.scene.start('EditorScene', { level: this.currentLevelData, isEditor: true });
+            },
+
+            exitEditor() {
+                const scene = this.game.scene.getScene('EditorScene');
+                if (scene && scene.testMode) scene.stopTestMode();
+                this.showMainMenu();
+            },
+
+            setTool(tool, btnElement) {
+                const scene = this.game.scene.getScene('EditorScene');
+                if(scene) scene.currentTool = tool;
+                
+                document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+                btnElement.classList.add('active');
+            },
+
+            toggleLivePreview() {
+                const scene = this.game.scene.getScene('EditorScene');
+                const btn = document.getElementById('btn-preview');
+                if (!scene) return;
+
+                if (scene.testMode) {
+                    scene.stopTestMode();
+                    btn.textContent = "Test Zone";
+                    btn.style.background = "";
+                    document.querySelector('.editor-toolbar').style.display = 'flex';
+                } else {
+                    scene.startTestMode();
+                    btn.textContent = "Stop Test";
+                    btn.style.background = "var(--danger)";
+                    document.querySelector('.editor-toolbar').style.display = 'none';
+                }
+            },
+
+            openEditorSettings() {
+                document.getElementById('editor-settings').classList.remove('hidden');
+                document.getElementById('level-name').value = this.currentLevelData.name;
+                document.getElementById('level-speed').value = this.currentLevelData.speed;
+            },
+
+            saveEditorSettings() {
+                this.currentLevelData.name = document.getElementById('level-name').value || "Unnamed Zone";
+                this.currentLevelData.speed = parseFloat(document.getElementById('level-speed').value) || 1.0;
+                
+                const scene = this.game.scene.getScene('EditorScene');
+                if(scene) scene.baseSpeed = 750 * this.currentLevelData.speed;
+
+                document.getElementById('editor-settings').classList.add('hidden');
+                Utils.saveCustomLevel(this.currentLevelData);
+                showError("Zone Settings Saved!");
+            },
+
+            saveAndExport() {
+                Utils.saveCustomLevel(this.currentLevelData);
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.currentLevelData));
+                const downloadAnchorNode = document.createElement('a');
+                downloadAnchorNode.setAttribute("href", dataStr);
+                downloadAnchorNode.setAttribute("download", this.currentLevelData.name.replace(/ /g,"_") + ".json");
+                document.body.appendChild(downloadAnchorNode);
+                downloadAnchorNode.click();
+                downloadAnchorNode.remove();
+            },
+
+            importLevel(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const levelData = Utils.sanitizeLevel(e.target.result);
+                        Utils.saveCustomLevel(levelData);
+                        this.populateLevelBrowser();
+                        showError("Zone Imported!");
+                    } catch (err) { showError("Invalid JSON Zone file."); }
+                };
+                reader.readAsText(file);
+            }
+        };
+
+        window.onload = () => { gameApp.init(); };
+    </script>
+</body>
+</html>
