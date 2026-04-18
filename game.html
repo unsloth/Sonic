@@ -1,27 +1,32 @@
 <!--
 =============================================================================
-SUPER HYPER DETAILED PLAN (NERD MODE) - V3 (LAYOUT & HITBOX FIXES)
+SUPER HYPER DETAILED PLAN (NERD MODE) - V4 (AUTO-ROTATION & INFINITE GROUND)
 =============================================================================
-1. CANVAS & LAYOUT FIX:
-   - The CSS `transform: rotate(90deg)` hack causes severe internal resolution bugs with Phaser's WebGL canvas (as seen in your screenshot where it's 40% and off-center).
-   - FIX: Removed the CSS rotation entirely. Instead, the canvas natively fills `100vw` and `100vh`. 
-   - STRICT HORIZONTAL: Added a CSS media query that displays a pure black "PLEASE ROTATE DEVICE" overlay if the user holds the phone vertically. This forces them to play in landscape, allowing the canvas to perfectly map 1:1 with the screen pixels without scaling bugs.
+1. AUTO-HORIZONTAL (NO ROTATION PROMPTS):
+   - Removed the "Please Rotate" screen entirely.
+   - Using advanced CSS `@media (orientation: portrait)` to force the `#game-wrapper` to swap dimensions (`width: 100vh`, `height: 100vw`) and rotate 90 degrees.
+   - Phaser's `Scale.RESIZE` mode will seamlessly adopt these rotated dimensions, rendering the game horizontally regardless of how the user holds the phone.
+   - HTML Touch Zones are used for controls, bypassing Phaser's rotated-pointer coordinate issues perfectly.
 
-2. EXACT UI PADDING:
-   - `#ui-layer` set to `top: 20px; bottom: 20px; left: 60px; right: 60px;`.
-   - Modals and HUD elements will respect this padding and never touch the edges.
+2. INFINITE GRASS LAYER & NO PITS:
+   - Replaced fragmented ground chunks with one massive, continuous physical ground rectangle stretching from `x = -2000` to `x = levelLength + 5000`.
+   - The user cannot fall under the map. 
 
-3. HITBOXES EXACTLY MATCHING IMAGE SIZES:
-   - Previously, Matter.js auto-guessed the hitboxes or applied custom scales poorly.
-   - FIX: Every single object now explicitly defines its Matter.js `shape` (width/height) to perfectly match its `.setDisplaySize()`.
-   - Player: 48x48 (Circle Radius 24)
-   - Block: 64x64 (Rectangle 64x64)
-   - Platform: 128x16 (Rectangle 128x16)
-   - Boost: 64x32 (Rectangle 64x32)
-   - This ensures ZERO clipping and perfect solid collisions.
+3. END FLAG LOGIC:
+   - Instead of relying solely on physical collision (which can be jumped over), the `update` loop continuously checks: `if (player.x >= endFlagX) triggerWin();`.
+   - Passing above or through the flag counts as a win.
 
-4. ASSET PIPELINE:
-   - `images (1).png`, `img/running.gif`, `sound/sonic.mp3`, etc., are correctly mapped. 
+4. PROCEDURAL ASSET GENERATION (SONIC VIBE):
+   - Provided assets (`images (1).png`, `img/running.gif`, etc.) are loaded first.
+   - Missing assets are drawn procedurally using `Phaser.Graphics` with a retro aesthetic:
+     - Block: Brown checkered square with a green grass top.
+     - Platform: Wooden slab with gold trim.
+     - Flags: Checkerboard poles with colored fabrics.
+     - Curve Slope (Ramp): Procedurally drawn retro slope.
+   - GIFs are loaded natively via Phaser (which extracts the first frame as a still image, fulfilling the "optimize way down, use as still image" request). A programmatic bounce/spin is added to give them life.
+
+5. EXACT UI PADDING:
+   - Applied exactly `60px` left/right padding and `20px` top/bottom padding to `#ui-layer`.
 =============================================================================
 -->
 
@@ -30,7 +35,7 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V3 (LAYOUT & HITBOX FIXES)
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Sonic Clone - Fixed Engine</title>
+    <title>Sonic Clone - Auto Landscape</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
@@ -39,20 +44,31 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V3 (LAYOUT & HITBOX FIXES)
         *, ::after, ::before { box-sizing: border-box; margin: 0; padding: 0; user-select: none; touch-action: none; }
         html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: 'Press Start 2P', monospace; }
 
-        /* GAME CANVAS CONTAINER */
-        #app-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
+        /* MASTER CONTAINER */
+        #app-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; overflow: hidden; background: #000; }
+
+        /* GAME WRAPPER - Auto Rotates on Portrait */
+        #game-wrapper {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            transform-origin: center center;
+        }
+
+        @media screen and (orientation: portrait) {
+            #game-wrapper {
+                width: 100vh;
+                height: 100vw;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%) rotate(90deg);
+            }
+        }
+
+        /* CANVAS */
         #game-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
 
-        /* PORTRAIT BLOCKER - Forces Landscape Without Bugging the Canvas */
-        #portrait-blocker {
-            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: #000; color: #FFD700; z-index: 9999;
-            flex-direction: column; justify-content: center; align-items: center; text-align: center;
-        }
-        @media screen and (orientation: portrait) {
-            #portrait-blocker { display: flex; }
-            #app-container { display: none; } /* Hide game while in portrait to prevent resize bugs */
-        }
+        /* INVISIBLE TOUCH ZONES */
+        #touch-zones { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; display: flex; }
+        .touch-half { flex: 1; height: 100%; pointer-events: auto; }
 
         /* UI LAYER - EXACT PADDING (60px Sides, 20px Top/Bottom) */
         #ui-layer {
@@ -61,15 +77,11 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V3 (LAYOUT & HITBOX FIXES)
             z-index: 10; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between;
         }
 
-        /* INVISIBLE TOUCH ZONES */
-        #touch-zones { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; display: flex; }
-        .touch-half { flex: 1; height: 100%; pointer-events: auto; }
-
         /* HUD & BUTTONS */
         .hud-top { display: flex; justify-content: space-between; align-items: flex-start; pointer-events: none; }
         .hud-bottom { display: flex; justify-content: space-between; align-items: flex-end; pointer-events: none; }
 
-        #score-hud { color: #FFD700; text-shadow: 2px 2px 0 #002D72, -2px -2px 0 #000; font-size: 16px; line-height: 1.5; pointer-events: auto;}
+        #score-hud { color: #FFD700; text-shadow: 2px 2px 0 #002D72, -2px -2px 0 #000; font-size: 16px; line-height: 1.5; pointer-events: auto; }
 
         .pixel-btn {
             background: #002D72; border: 3px solid #fff; color: #fff; font-family: inherit;
@@ -80,8 +92,8 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V3 (LAYOUT & HITBOX FIXES)
         .btn-red { background: #E3000F; }
 
         .action-btn {
-            width: 70px; height: 70px; border-radius: 50%; background: rgba(0, 45, 114, 0.7);
-            border: 3px solid rgba(255,255,255,0.8); color: #fff; display: flex; align-items: center; justify-content: center;
+            width: 70px; height: 70px; border-radius: 50%; background: rgba(0, 45, 114, 0.8);
+            border: 3px solid rgba(255,255,255,0.9); color: #fff; display: flex; align-items: center; justify-content: center;
             font-size: 10px; box-shadow: 0 5px 0 rgba(0,0,0,0.5); font-family: inherit; cursor: pointer; pointer-events: auto;
         }
         .action-btn:active { transform: translateY(5px); box-shadow: none; background: rgba(255, 215, 0, 0.9); color: #000; }
@@ -102,56 +114,53 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V3 (LAYOUT & HITBOX FIXES)
 </head>
 <body>
 
-<!-- Portrait Blocker Overlay -->
-<div id="portrait-blocker">
-    <h2>PLEASE ROTATE</h2>
-    <p style="font-size: 10px; margin-top:10px;">Game requires landscape mode.</p>
-</div>
-
 <div id="app-container">
-    <div id="game-container"></div>
+    <!-- Everything inside game-wrapper auto-rotates on portrait devices -->
+    <div id="game-wrapper">
+        <div id="game-container"></div>
 
-    <div id="touch-zones">
-        <div class="touch-half" id="zone-left"></div>
-        <div class="touch-half" id="zone-right"></div>
-    </div>
-
-    <!-- UI LAYER: Strictly padded (60px sides, 20px top/bottom) -->
-    <div id="ui-layer">
-        <div class="hud-top">
-            <div id="score-hud">RINGS: 0<br><span id="speed-hud" style="font-size:10px; color:#FFF;">SPEED: 0</span></div>
-            <button class="pixel-btn" id="btn-pause">|| PAUSE</button>
+        <div id="touch-zones">
+            <div class="touch-half" id="zone-left"></div>
+            <div class="touch-half" id="zone-right"></div>
         </div>
-        <div class="hud-bottom">
-            <button class="action-btn" id="btn-roll-vis">ROLL</button>
-            <button class="action-btn" id="btn-jump-vis">JUMP</button>
-        </div>
-    </div>
 
-    <!-- Pause Modal -->
-    <div id="pause-modal" class="modal-overlay">
-        <div class="retro-box">
-            <h2 class="modal-title">PAUSED</h2>
-            <button class="pixel-btn" id="btn-resume" style="width:100%;">RESUME</button>
-            <button class="pixel-btn btn-red" id="btn-quit" style="width:100%;">QUIT</button>
+        <div id="ui-layer">
+            <div class="hud-top">
+                <div id="score-hud">RINGS: 0<br><span id="speed-hud" style="font-size:10px; color:#FFF;">SPEED: 0</span></div>
+                <button class="pixel-btn" id="btn-pause">|| PAUSE</button>
+            </div>
+            <div class="hud-bottom">
+                <button class="action-btn" id="btn-roll-vis">ROLL</button>
+                <button class="action-btn" id="btn-jump-vis">JUMP</button>
+            </div>
         </div>
-    </div>
 
-    <!-- Death Modal -->
-    <div id="death-modal" class="modal-overlay">
-        <div class="retro-box">
-            <h2 class="modal-title" style="color:#ff4c4c;">YOU DIED</h2>
-            <p style="color:#fff; font-size:10px;">Lost all rings!</p>
-            <button class="pixel-btn" id="btn-restart-death" style="width:100%;">RETRY</button>
+        <!-- Pause Modal -->
+        <div id="pause-modal" class="modal-overlay">
+            <div class="retro-box">
+                <h2 class="modal-title">PAUSED</h2>
+                <button class="pixel-btn" id="btn-resume" style="width:100%;">RESUME</button>
+                <button class="pixel-btn btn-red" id="btn-quit" style="width:100%;">QUIT</button>
+            </div>
         </div>
-    </div>
 
-    <!-- Win Modal -->
-    <div id="win-modal" class="modal-overlay">
-        <div class="retro-box">
-            <h2 class="modal-title" style="color:#00FF00;">ZONE CLEARED</h2>
-            <p id="final-score" style="color:#fff; font-size:12px;">RINGS: 0</p>
-            <button class="pixel-btn" id="btn-restart-win" style="width:100%;">PLAY AGAIN</button>
+        <!-- Death Modal -->
+        <div id="death-modal" class="modal-overlay">
+            <div class="retro-box">
+                <h2 class="modal-title" style="color:#ff4c4c;">YOU DIED</h2>
+                <p style="color:#fff; font-size:10px;">Lost all rings!</p>
+                <button class="pixel-btn" id="btn-restart-death" style="width:100%;">RETRY</button>
+                <button class="pixel-btn btn-red" id="btn-quit-death" style="width:100%;">QUIT</button>
+            </div>
+        </div>
+
+        <!-- Win Modal -->
+        <div id="win-modal" class="modal-overlay">
+            <div class="retro-box">
+                <h2 class="modal-title" style="color:#00FF00;">ZONE CLEARED</h2>
+                <p id="final-score" style="color:#fff; font-size:12px;">RINGS: 0</p>
+                <button class="pixel-btn" id="btn-restart-win" style="width:100%;">PLAY AGAIN</button>
+            </div>
         </div>
     </div>
 </div>
@@ -165,9 +174,15 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V3 (LAYOUT & HITBOX FIXES)
             try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
             this.bgm = new Audio('sound/sonic.mp3');
             this.bgm.loop = true; this.bgm.volume = 0.3;
+            this.bgmStarted = false;
         }
-        playBGM() { this.bgm.play().catch(()=>console.warn("BGM blocked")); }
-        pauseBGM() { this.bgm.pause(); }
+        playBGM() { 
+            if(!this.bgmStarted) {
+                this.bgm.play().catch(()=>{}); 
+                this.bgmStarted = true;
+            }
+        }
+        pauseBGM() { this.bgm.pause(); this.bgmStarted = false; }
         play(type) {
             if(!this.ctx) return;
             if(this.ctx.state === 'suspended') this.ctx.resume();
@@ -204,18 +219,17 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V3 (LAYOUT & HITBOX FIXES)
         { t: 'start_flag', cx: 2, cy: 1 },
         { t: 'ring', cx: 6, cy: 0 }, { t: 'ring', cx: 7, cy: 0 }, { t: 'ring', cx: 8, cy: 0 },
         { t: 'block', cx: 12, cy: 0 }, { t: 'ring', cx: 12, cy: 2 },
-        { t: 'spike', cx: 15, cy: 0 },
+        { t: 'spike', cx: 16, cy: 0 },
         { t: 'boost', cx: 20, cy: 0 },
         { t: 'ramp', cx: 24, cy: 0 },
         { t: 'ring', cx: 26, cy: 3 }, { t: 'ring', cx: 27, cy: 4 }, { t: 'ring', cx: 28, cy: 3 },
-        { t: 'gap_start', cx: 32 }, { t: 'gap_end', cx: 38 },
         { t: 'platform', cx: 33, cy: 1 },
-        { t: 'moto_x', cx: 35, cy: 2 },
-        { t: 'moto_y', cx: 37, cy: 1 },
-        { t: 'spike', cx: 42, cy: 0 }, { t: 'spike', cx: 43, cy: 0 },
-        { t: 'boost', cx: 48, cy: 0 },
-        { t: 'ramp', cx: 52, cy: 0 },
-        { t: 'end_flag', cx: 60, cy: 1 }
+        { t: 'moto_x', cx: 36, cy: 2 },
+        { t: 'moto_y', cx: 40, cy: 1 },
+        { t: 'spike', cx: 45, cy: 0 }, { t: 'spike', cx: 46, cy: 0 },
+        { t: 'boost', cx: 50, cy: 0 },
+        { t: 'ramp', cx: 54, cy: 0 },
+        { t: 'end_flag', cx: 65, cy: 1 }
     ];
 
     // ==========================================
@@ -236,22 +250,53 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V3 (LAYOUT & HITBOX FIXES)
             this.load.image('grass', 'img/grass.png');
             this.load.image('dirt', 'img/dirt.png');
 
-            // Fallback generation
+            // PROCEDURAL GENERATION (Retro Vibe Fallbacks)
             let g = this.make.graphics({x:0, y:0, add:false});
+            
+            // BG Fallback
             g.fillStyle(0x000033); g.fillRect(0,0,64,64); g.generateTexture('fb_bg', 64, 64);
+            
+            // Grass & Dirt Fallback
             g.clear(); g.fillStyle(0x228B22); g.fillRect(0,0,64,64); g.generateTexture('fb_grass', 64, 64);
             g.clear(); g.fillStyle(0x5C4033); g.fillRect(0,0,64,64); g.generateTexture('fb_dirt', 64, 64);
+            
+            // Ring Fallback
             g.clear(); g.fillStyle(0xFFD700); g.fillCircle(16,16,12); g.fillStyle(0x000); g.fillCircle(16,16,8); g.generateTexture('fb_ring', 32, 32);
+            
+            // Spike Fallback
             g.clear(); g.fillStyle(0xAAAAAA); g.fillTriangle(32,0, 64,64, 0,64); g.generateTexture('fb_spike', 64, 64);
+            
+            // Boost Fallback
             g.clear(); g.fillStyle(0xE3000F); g.fillRect(0,32,64,32); g.fillStyle(0xFFD700); g.fillRect(8,16,48,16); g.generateTexture('fb_boost', 64, 64);
+            
+            // Player Fallbacks
             g.clear(); g.fillStyle(0x0044CC); g.fillCircle(24,24,24); g.generateTexture('fb_run', 48, 48);
             g.clear(); g.fillStyle(0x0044CC); g.fillCircle(24,24,20); g.lineStyle(4, 0x66CCFF); g.strokeCircle(24,24,18); g.generateTexture('fb_roll', 48, 48);
-            g.clear(); g.fillStyle(0x8B4513); g.fillRect(0,0,64,64); g.generateTexture('fb_block', 64, 64);
-            g.clear(); g.fillStyle(0xA0522D); g.fillRect(0,0,128,16); g.generateTexture('fb_platform', 128, 16);
-            g.clear(); g.fillStyle(0xFF8C00); g.fillRect(0,0,128,16); g.generateTexture('fb_moto_x', 128, 16);
-            g.clear(); g.fillStyle(0xFF4500); g.fillRect(0,0,128,16); g.generateTexture('fb_moto_y', 128, 16);
-            g.clear(); g.fillStyle(0x00FF00); g.fillRect(0,0,16,128); g.generateTexture('fb_start', 16, 128);
-            g.clear(); g.fillStyle(0xFFFFFF); g.fillRect(0,0,16,128); g.generateTexture('fb_end', 16, 128);
+            
+            // Block (Procedural Retro Sonic Vibe)
+            g.clear(); g.fillStyle(0x8B4513); g.fillRect(0,0,64,64); 
+            g.fillStyle(0x654321); g.fillRect(0,0,32,32); g.fillRect(32,32,32,32);
+            g.fillStyle(0x228B22); g.fillRect(0,0,64,16);
+            g.generateTexture('fb_block', 64, 64);
+            
+            // Platform (Procedural)
+            g.clear(); g.fillStyle(0xA0522D); g.fillRect(0,0,128,16);
+            g.fillStyle(0xFFD700); g.fillRect(0,0,128,4);
+            g.generateTexture('fb_platform', 128, 16);
+            
+            // Moto X & Y (Procedural)
+            g.clear(); g.fillStyle(0xFF8C00); g.fillRect(0,0,128,16); g.fillStyle(0xFFFFFF); g.fillRect(0,0,128,4); g.generateTexture('fb_moto_x', 128, 16);
+            g.clear(); g.fillStyle(0xFF4500); g.fillRect(0,0,128,16); g.fillStyle(0xFFFFFF); g.fillRect(0,0,128,4); g.generateTexture('fb_moto_y', 128, 16);
+            
+            // Flags (Procedural)
+            g.clear(); g.fillStyle(0x888888); g.fillRect(6,0,4,128); // Pole
+            g.fillStyle(0x00FF00); g.fillRect(10,10,20,16); // Start Flag
+            g.generateTexture('fb_start', 32, 128);
+            
+            g.clear(); g.fillStyle(0x888888); g.fillRect(6,0,4,128); // Pole
+            g.fillStyle(0xFFFFFF); g.fillRect(10,10,10,10); g.fillRect(20,20,10,10); 
+            g.fillStyle(0x000000); g.fillRect(20,10,10,10); g.fillRect(10,20,10,10); // Checkered End Flag
+            g.generateTexture('fb_end', 32, 128);
         }
         create() { this.scene.start('PlayScene'); }
     }
@@ -267,6 +312,8 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V3 (LAYOUT & HITBOX FIXES)
             this.isPaused = false;
             this.playerState = 'running';
             this.invulnTimer = 0;
+            this.endFlagX = 999999;
+            
             let maxCol = Math.max(...LEVEL_GRID.map(o => o.cx || 0));
             this.levelLength = (maxCol + 10) * TILE_SIZE; 
         }
@@ -275,29 +322,23 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V3 (LAYOUT & HITBOX FIXES)
 
         create() {
             this.matter.world.setGravity(0, 2.5);
-            sfx.playBGM();
 
             // Backgrounds
-            this.bg = this.add.tileSprite(0, 0, this.levelLength, this.scale.height, this.getTex('bg'));
+            this.bg = this.add.tileSprite(0, 0, this.levelLength + 5000, this.scale.height, this.getTex('bg'));
             this.bg.setOrigin(0,0).setScrollFactor(0.05).setDepth(-10);
-            this.dirt = this.add.tileSprite(0, this.groundY + TILE_SIZE, this.levelLength, 2000, this.getTex('dirt'));
+            
+            // Continuous Dirt & Grass Visuals
+            this.dirt = this.add.tileSprite(0, this.groundY + TILE_SIZE, this.levelLength + 5000, 2000, this.getTex('dirt'));
             this.dirt.setOrigin(0, 0).setDepth(-5);
-            this.grass = this.add.tileSprite(0, this.groundY, this.levelLength, TILE_SIZE, this.getTex('grass'));
+            this.grass = this.add.tileSprite(0, this.groundY, this.levelLength + 5000, TILE_SIZE, this.getTex('grass'));
             this.grass.setOrigin(0, 0).setDepth(-4);
 
-            // Physics Ground
-            let gaps = LEVEL_GRID.filter(o => o.t === 'gap_start' || o.t === 'gap_end').sort((a,b)=>a.cx - b.cx);
-            let startX = -1000;
-            for(let i=0; i<gaps.length; i+=2) {
-                let gapS = gaps[i].cx * TILE_SIZE;
-                let gapE = gaps[i+1].cx * TILE_SIZE;
-                let width = gapS - startX;
-                this.matter.add.rectangle(startX + width/2, this.groundY + 32, width, 64, { isStatic: true, friction: 0.05, collisionFilter: { category: CAT_GROUND } });
-                startX = gapE;
-            }
-            this.matter.add.rectangle(startX + (this.levelLength-startX)/2, this.groundY + 32, this.levelLength - startX, 64, { isStatic: true, friction: 0.05, collisionFilter: { category: CAT_GROUND } });
+            // Infinite Ground Physics (No Pits)
+            this.matter.add.rectangle((this.levelLength + 5000)/2 - 2000, this.groundY + 32, this.levelLength + 9000, 64, { 
+                isStatic: true, friction: 0.05, collisionFilter: { category: CAT_GROUND } 
+            });
 
-            // Player (EXACT HITBOX: Circle radius 24 for a 48x48 image)
+            // Player (EXACT HITBOX)
             this.player = this.matter.add.sprite(TILE_SIZE * 2, this.groundY - 100, this.getTex('run'), null, {
                 shape: { type: 'circle', radius: 24 },
                 friction: 0.001, restitution: 0, label: 'player',
@@ -306,14 +347,12 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V3 (LAYOUT & HITBOX FIXES)
             this.player.setDisplaySize(48, 48);
             this.player.setFixedRotation();
 
-            // Level Objects (EXACT HITBOXES)
+            // Setup level objects
             this.levelObjects = [];
             this.ringsToRemove =[];
             this.scatteredRings =[];
 
             LEVEL_GRID.forEach(obj => {
-                if(obj.t === 'gap_start' || obj.t === 'gap_end') return;
-                
                 const x = obj.cx * TILE_SIZE;
                 const y = this.groundY - (obj.cy * TILE_SIZE) - (TILE_SIZE/2) + 32; 
                 let sprite;
@@ -357,18 +396,20 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V3 (LAYOUT & HITBOX FIXES)
                     sprite.startX = x; sprite.startY = y;
                 } else if (obj.t === 'start_flag' || obj.t === 'end_flag') {
                     sprite = this.matter.add.sprite(x, y - 32, this.getTex(obj.t.split('_')[0]), null, { 
-                        shape: { type: 'rectangle', width: 16, height: 128 },
+                        shape: { type: 'rectangle', width: 32, height: 128 },
                         isStatic: true, isSensor: true, label: obj.t, collisionFilter:{category: CAT_RING} 
                     });
-                    sprite.setDisplaySize(16, 128);
+                    sprite.setDisplaySize(32, 128);
+                    
                     if(obj.t==='start_flag') this.player.setPosition(x, y - 64);
+                    if(obj.t==='end_flag') this.endFlagX = x; // Store for X-coordinate win check
                 }
 
                 if(sprite) { sprite.objType = obj.t; this.levelObjects.push(sprite); }
             });
 
             // Camera bounds mapping exactly to standard fullscreen
-            this.cameras.main.setBounds(0, -2000, this.levelLength, 4000);
+            this.cameras.main.setBounds(0, -2000, this.levelLength + 2000, 4000);
             this.cameras.main.startFollow(this.player, true, 0.1, 0.1, -this.scale.width / 4, 100);
 
             // Inputs & Collisions
@@ -381,7 +422,7 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V3 (LAYOUT & HITBOX FIXES)
             this.rollDown = false;
             const bind = (id, downFn, upFn) => {
                 const el = document.getElementById(id);
-                el.onpointerdown = downFn;
+                el.onpointerdown = (e) => { sfx.playBGM(); downFn(e); };
                 if(upFn) { el.onpointerup = upFn; el.onpointerout = upFn; }
             };
 
@@ -390,13 +431,15 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V3 (LAYOUT & HITBOX FIXES)
             bind('zone-right', () => this.triggerJump());
             bind('btn-jump-vis', () => this.triggerJump());
 
-            document.getElementById('btn-pause').onclick = () => this.togglePause();
+            document.getElementById('btn-pause').onclick = () => { sfx.playBGM(); this.togglePause(); };
             document.getElementById('btn-resume').onclick = () => this.togglePause();
             
-            document.getElementById('btn-quit').onclick = () => {
+            const quitFn = () => {
                 document.querySelectorAll('.modal-overlay').forEach(el => el.style.display = 'none');
                 sfx.pauseBGM(); this.scene.restart();
             };
+            document.getElementById('btn-quit').onclick = quitFn;
+            document.getElementById('btn-quit-death').onclick = quitFn;
 
             const restart = () => {
                 document.querySelectorAll('.modal-overlay').forEach(el => el.style.display = 'none');
@@ -443,8 +486,6 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V3 (LAYOUT & HITBOX FIXES)
                         } else if (other.label === 'boost') {
                             this.player.setVelocityY(-25);
                             sfx.play('boost');
-                        } else if (other.label === 'end_flag') {
-                            this.triggerWin();
                         }
                     }
                 });
@@ -530,6 +571,12 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V3 (LAYOUT & HITBOX FIXES)
         update(time, delta) {
             if (['dead','won'].includes(this.playerState) || this.isPaused) return;
 
+            // X-Coordinate Win Check (Passing above or touching end flag)
+            if (this.player.x >= this.endFlagX) {
+                this.triggerWin();
+                return;
+            }
+
             if (this.ringsToRemove.length > 0) {
                 this.ringsToRemove.forEach(r => { if(r && r.active) r.destroy(); });
                 this.ringsToRemove =[];
@@ -544,10 +591,6 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V3 (LAYOUT & HITBOX FIXES)
             const raycast = Phaser.Physics.Matter.Matter.Query.ray(bodies, { x: this.player.x, y: this.player.y }, { x: this.player.x, y: this.player.y + 28 });
             this.isGrounded = raycast.length > 0;
 
-            if (this.player.y > this.groundY + 500) {
-                this.rings = 0; this.hitSpike();
-            }
-
             if (this.rollDown && this.isGrounded && this.playerState === 'running') {
                 this.playerState = 'rolling';
                 this.player.setTexture(this.getTex('roll'));
@@ -559,6 +602,13 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V3 (LAYOUT & HITBOX FIXES)
                 this.player.setDisplaySize(48, 48);
                 this.player.setFixedRotation();
                 this.player.rotation = 0;
+            }
+
+            // Animate still GIF frames programmatically
+            if (this.playerState === 'running' && this.isGrounded) {
+                this.player.scaleY = 1 + Math.sin(time * 0.03) * 0.05; // Slight running bounce
+            } else {
+                this.player.scaleY = 1;
             }
 
             if (this.playerState === 'running') {
@@ -586,7 +636,7 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V3 (LAYOUT & HITBOX FIXES)
         }
     }
 
-    // INIT with pure standard scaling to fill 100% of the screen
+    // INIT
     window.onload = () => {
         new Phaser.Game({
             type: Phaser.AUTO,
