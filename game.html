@@ -3,138 +3,78 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Sonic Dash - Classic Mechanics</title>
+    <title>Sonic Dash - Ultimate Engine</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <style>
-        /* PURE PIXEL RETRO VIBE - PROFESSIONAL CLEANUP */
+        /* === PURE PIXEL ENGINE CSS === */
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
         
-        *,::after,::before { box-sizing: border-box; margin: 0; padding: 0; user-select: none; touch-action: none; }
-        html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: 'Press Start 2P', 'Courier New', cursive; }
+        *, ::after, ::before { box-sizing: border-box; margin: 0; padding: 0; user-select: none; touch-action: none; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: 'Press Start 2P', monospace; }
         
+        /* Master Wrapper - Responsive & Rotation Locked */
         #app-wrap {
-            position: absolute;
-            top: 0; left: 0;
+            position: absolute; top: 50%; left: 50%;
             width: 100vw; height: 100vh;
-            overflow: hidden;
-            background: #000;
+            transform: translate(-50%, -50%);
+            overflow: hidden; background: #000;
+        }
+
+        @media screen and (orientation: portrait) { 
+            #app-wrap {
+                width: 100vh; height: 100vw;
+                transform: translate(-50%, -50%) rotate(90deg);
+            }
         }
 
         #game-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
+        
+        /* UI Layer - Handles all touch events to bypass canvas rotation coordinate bugs */
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; }
 
-        /* HUD */
-        .hud-text { 
-            position: absolute; 
-            color: #FFD700; 
-            text-shadow: 2px 2px 0 #002D72, -1px -1px 0 #fff; 
-            font-size: 14px; 
-            pointer-events: none; 
-            z-index: 20;
-        }
+        /* Fullscreen invisible touch zones for fallback controls */
+        #touch-left { position: absolute; left: 0; top: 0; width: 50%; height: 100%; z-index: 11; }
+        #touch-right { position: absolute; right: 0; top: 0; width: 50%; height: 100%; z-index: 11; }
+
+        /* === HUD & BUTTONS (STRICT PADDING) === */
+        .hud-text { position: absolute; color: #FFD700; text-shadow: 2px 2px 0 #002D72, -2px -2px 0 #000; font-size: 14px; z-index: 20; pointer-events: none; }
+        
+        /* 50px Horiz, 20px Vert */
         #score-hud { top: 20px; left: 50px; }
-
-        /* Pause Bottom Right */
-        #pause-ui {
-            position: absolute;
-            bottom: 20px;
-            right: 50px; 
-            pointer-events: auto;
-            z-index: 20;
-        }
-
-        /* Controls Bottom Left - Responsive sizing */
-        #mobile-controls { 
-            position: absolute; 
-            bottom: 20px; 
-            left: 50px; 
-            display: flex; 
-            gap: 20px; 
-            pointer-events: auto; 
-            z-index: 20;
-        }
+        
+        #pause-ui { position: absolute; bottom: 20px; right: 50px; z-index: 20; }
+        
+        #mobile-controls { position: absolute; bottom: 20px; left: 50px; display: flex; gap: 20px; z-index: 20; }
 
         .pixel-btn {
-            background: #002D72; 
-            border: 3px solid #fff; 
-            color: #fff; 
-            font-family: 'Press Start 2P', cursive;
-            box-shadow: inset -3px -3px 0 rgba(0,0,0,0.4), 4px 4px 0 #000; 
-            font-size: 10px; 
-            padding: 12px 15px; 
-            cursor: pointer;
-            text-transform: uppercase; 
-            transition: transform 0.1s; 
-            outline: none;
+            background: #002D72; border: 3px solid #fff; color: #fff; font-family: inherit;
+            box-shadow: inset -3px -3px 0 rgba(0,0,0,0.4), 4px 4px 0 #000; font-size: 10px; padding: 12px 15px; cursor: pointer;
+            text-transform: uppercase; transition: transform 0.1s; outline: none; pointer-events: auto;
         }
-        .pixel-btn:active { 
-            transform: translate(4px, 4px); 
-            box-shadow: none; 
-            background: #FFD700; 
-            color: #002D72; 
-        }
+        .pixel-btn:active { transform: translate(4px, 4px); box-shadow: none; background: #FFD700; color: #002D72; }
         .btn-red { background: #E3000F; }
 
         .control-btn { 
-            width: 70px; 
-            height: 70px; 
-            border-radius: 50%; 
-            background: rgba(0, 45, 114, 0.6); 
-            border: 3px solid rgba(255,255,255,0.6); 
-            color: rgba(255,255,255,0.8);
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            font-size: 10px; 
-            box-shadow: 0 5px 0 rgba(0,0,0,0.3); 
-            font-family: inherit; 
-            cursor: pointer;
+            width: 70px; height: 70px; border-radius: 50%; background: rgba(0, 45, 114, 0.6); 
+            border: 3px solid rgba(255,255,255,0.6); color: rgba(255,255,255,0.8);
+            display: flex; align-items: center; justify-content: center; font-size: 10px; 
+            box-shadow: 0 5px 0 rgba(0,0,0,0.3); font-family: inherit; cursor: pointer; pointer-events: auto;
         }
-        .control-btn:active { 
-            transform: translateY(5px); 
-            box-shadow: none; 
-            background: rgba(255, 215, 0, 0.8); 
-            color: #000; 
-        }
+        .control-btn:active { transform: translateY(5px); box-shadow: none; background: rgba(255, 215, 0, 0.8); color: #000; }
 
-        /* Custom Popup Menus */
+        /* === CUSTOM POPUPS === */
         .modal-overlay {
-            position: absolute; 
-            top: 0; left: 0; 
-            width: 100%; height: 100%;
-            background: rgba(0,0,0,0.85); 
-            display: none; 
-            align-items: center; 
-            justify-content: center;
-            pointer-events: auto; 
-            z-index: 100;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center;
+            z-index: 100; pointer-events: auto;
         }
         .retro-box {
-            background: #002D72; 
-            border: 4px solid #fff; 
-            box-shadow: inset -4px -4px 0 rgba(0,0,0,0.6), 8px 8px 0 #000;
-            padding: 30px; 
-            display: flex; 
-            flex-direction: column; 
-            gap: 20px; 
-            align-items: center; 
-            text-align: center;
-            min-width: 300px;
-            border-radius: 4px;
+            background: #002D72; border: 4px solid #fff; box-shadow: inset -4px -4px 0 rgba(0,0,0,0.4), 8px 8px 0 #000;
+            padding: 30px; display: flex; flex-direction: column; gap: 20px; align-items: center; text-align: center;
+            min-width: 280px; image-rendering: pixelated;
         }
-        .retro-box h2 { 
-            font-size: 18px; 
-            margin-bottom: 15px; 
-            text-shadow: 2px 2px 0 #000; 
-        }
-        
-        .hidden { display: none !important; }
-
-        /* PROFESSIONAL ORIENTATION OVERLAY - Replaces broken rotate hack */
-        #orientation-overlay .retro-box {
-            max-width: 340px;
-        }
+        .modal-title { color:#FFD700; text-shadow:3px 3px 0 #000; font-size:18px; line-height: 1.5; }
     </style>
 </head>
 <body>
@@ -143,90 +83,70 @@
         <div id="game-container"></div>
         
         <div id="ui-layer">
+            <!-- Touch Zones for logical mapping without canvas coordinate bugs -->
+            <div id="touch-left"></div>
+            <div id="touch-right"></div>
+
             <div id="score-hud" class="hud-text">RINGS: 0</div>
             
             <div id="pause-ui">
-                <button class="pixel-btn" onclick="togglePause()">|| PAUSE</button>
+                <button class="pixel-btn" id="btn-pause">|| PAUSE</button>
             </div>
-
-            <!-- Tap zones (invisible helpers) -->
-            <div id="left-tap-zone" style="position:absolute; bottom:0; left:0; width:40%; height:60%; pointer-events:auto; opacity:0;"></div>
-            <div id="right-tap-zone" style="position:absolute; bottom:0; right:0; width:40%; height:60%; pointer-events:auto; opacity:0;"></div>
 
             <div id="mobile-controls">
                 <button class="control-btn" id="btn-roll">ROLL</button>
                 <button class="control-btn" id="btn-jump">JUMP</button>
             </div>
 
-            <!-- Pause Menu -->
-            <div id="pause-menu" class="modal-overlay">
+            <!-- Custom Modals -->
+            <div id="pause-modal" class="modal-overlay">
                 <div class="retro-box">
-                    <h2 style="color:#FFD700;">PAUSED</h2>
-                    <button class="pixel-btn" onclick="togglePause()" style="width:100%;">RESUME</button>
+                    <h2 class="modal-title">PAUSED</h2>
+                    <button class="pixel-btn" id="btn-resume" style="width:100%;">RESUME</button>
                     <button class="pixel-btn btn-red" onclick="navToMenu()" style="width:100%;">EXIT ZONE</button>
                 </div>
             </div>
 
-            <!-- Death Menu -->
-            <div id="death-menu" class="modal-overlay">
+            <div id="death-modal" class="modal-overlay">
                 <div class="retro-box">
-                    <h2 style="color:#E3000F;">YOU DIED</h2>
-                    <button class="pixel-btn" onclick="restartLevel()" style="width:100%;">TRY AGAIN</button>
-                    <button class="pixel-btn btn-red" onclick="navToMenu()" style="width:100%;">EXIT ZONE</button>
+                    <h2 class="modal-title" style="color:#ff4c4c;">YOU DIED</h2>
+                    <p style="color:#fff; font-size:10px; margin-bottom:10px;">Too slow...</p>
+                    <button class="pixel-btn" id="btn-restart-death" style="width:100%;">TRY AGAIN</button>
+                    <button class="pixel-btn btn-red" onclick="navToMenu()" style="width:100%;">EXIT</button>
                 </div>
             </div>
 
-            <!-- Win Menu -->
-            <div id="win-menu" class="modal-overlay">
+            <div id="win-modal" class="modal-overlay">
                 <div class="retro-box">
-                    <h2 style="color:#00FF00;">ZONE CLEARED</h2>
-                    <p id="win-rings" style="color:#FFD700; font-size:12px; margin-bottom:10px;">RINGS: 0</p>
-                    <button class="pixel-btn" onclick="navToMenu()" style="width:100%;">CONTINUE</button>
-                </div>
-            </div>
-
-            <!-- PROFESSIONAL ORIENTATION OVERLAY -->
-            <div id="orientation-overlay" class="modal-overlay">
-                <div class="retro-box">
-                    <h2 style="color:#FFD700;">📱 ROTATE DEVICE</h2>
-                    <p style="color:#fff; font-size:12px; max-width:280px; line-height:1.4;">
-                        For the best Sonic Dash experience,<br>please rotate your device to <strong>LANDSCAPE</strong> mode!
-                    </p>
-                    <div style="font-size:48px; margin:20px 0; animation: rotateAnim 2s infinite linear;">↔️</div>
-                    <small style="color:#aaa; font-size:9px;">(Portrait mode disabled for proper gameplay)</small>
+                    <h2 class="modal-title" style="color:#00FF00;">ZONE CLEARED</h2>
+                    <p id="final-score" style="color:#fff; font-size:12px; margin-bottom:10px;">RINGS: 0</p>
+                    <button class="pixel-btn" id="btn-restart-win" style="width:100%;">PLAY AGAIN</button>
+                    <button class="pixel-btn btn-red" onclick="navToMenu()" style="width:100%;">MAIN MENU</button>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        // --- AUDIO SYNTHESIS ENGINE (unchanged - solid) ---
+        // ==========================================
+        // 1. AUDIO SYSTEM
+        // ==========================================
         const bgm = new Audio('sound/sonic.mp3');
-        bgm.loop = true;
-        bgm.volume = 0.2;
+        bgm.loop = true; bgm.volume = 0.2;
         
         const savedTime = sessionStorage.getItem('sonic_bgm_time');
         if (savedTime) bgm.currentTime = parseFloat(savedTime);
         
         let bgmPlaying = false;
-        function playBGM() { 
-            if(!bgmPlaying) { 
-                bgm.play().catch(e=>e); 
-                bgmPlaying = true; 
-            } 
-        }
+        function playBGM() { if(!bgmPlaying) { bgm.play().catch(e=>e); bgmPlaying = true; } }
         document.addEventListener('pointerdown', playBGM, { once: true });
+        setInterval(() => { if (bgmPlaying && !bgm.paused) sessionStorage.setItem('sonic_bgm_time', bgm.currentTime); }, 100);
 
-        setInterval(() => {
-            if (bgmPlaying && !bgm.paused) sessionStorage.setItem('sonic_bgm_time', bgm.currentTime);
-        }, 100);
-
-        function playRetroSound(type) {
+        function playSFX(type) {
             try {
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
                 if(ctx.state === 'suspended') ctx.resume();
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
+                const osc = ctx.createOscillator(); const gain = ctx.createGain();
                 osc.connect(gain); gain.connect(ctx.destination);
                 
                 if (type === 'ring') {
@@ -239,130 +159,90 @@
                     osc.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.2);
                     gain.gain.setValueAtTime(0.1, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
                     osc.start(); osc.stop(ctx.currentTime + 0.2);
-                } else if (type === 'boost') {
-                    osc.type = 'sawtooth'; osc.frequency.setValueAtTime(400, ctx.currentTime);
-                    osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.4);
-                    gain.gain.setValueAtTime(0.2, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
-                    osc.start(); osc.stop(ctx.currentTime + 0.4);
-                } else if (type === 'hurt') {
-                    osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, ctx.currentTime);
-                    osc.frequency.linearRampToValueAtTime(50, ctx.currentTime + 0.3);
-                    gain.gain.setValueAtTime(0.3, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-                    osc.start(); osc.stop(ctx.currentTime + 0.3);
-                } else if (type === 'ringloss') {
-                    osc.type = 'sine'; osc.frequency.setValueAtTime(800, ctx.currentTime);
-                    osc.frequency.linearRampToValueAtTime(1500, ctx.currentTime + 0.5);
+                } else if (type === 'ring_loss') {
+                    osc.type = 'sawtooth'; osc.frequency.setValueAtTime(300, ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.5);
                     gain.gain.setValueAtTime(0.4, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
                     osc.start(); osc.stop(ctx.currentTime + 0.5);
                 }
             } catch(e) {}
         }
 
-        // Navigation
         function navToMenu() {
-            playRetroSound('jump');
-            sessionStorage.setItem('sonic_bgm_time', bgm.currentTime);
+            playSFX('jump'); sessionStorage.setItem('sonic_bgm_time', bgm.currentTime);
             setTimeout(() => { window.location.href = 'menu.html'; }, 300);
         }
 
-        function restartLevel() {
-            playRetroSound('jump');
-            document.getElementById('death-menu').style.display = 'none';
-            if(gameInstance) gameInstance.scene.getScene('PlayScene').scene.restart();
-        }
-
-        // --- MEGA TRIAL MAP (unchanged) ---
-        const TRIAL_LEVEL = {
+        // ==========================================
+        // 2. MEGA TRIAL LEVEL DATA
+        // ==========================================
+        const MEGA_LEVEL = {
             name: "Mega Trial Zone", speed: 1.0,
             objects:[
+                // Safe Zone
                 { t: 'start_flag', x: 200, y: -32 },
-                { t: 'coin', x: 500, y: -32 }, { t: 'coin', x: 550, y: -32 }, { t: 'coin', x: 600, y: -32 }, { t: 'coin', x: 650, y: -32 },
-                { t: 'spike', x: 1000, y: -32 }, { t: 'coin', x: 1000, y: -150 },
+                { t: 'coin', x: 500, y: -32 }, { t: 'coin', x: 550, y: -32 }, { t: 'coin', x: 600, y: -32 },
+                // First Jump & Spike
+                { t: 'spike', x: 900, y: -32 },
+                { t: 'platform', x: 1100, y: -80 }, { t: 'coin', x: 1100, y: -120 },
+                // Ramp Momentum Test
                 { t: 'ramp', x: 1500, y: -64 },
-                { t: 'coin', x: 1600, y: -200 }, { t: 'coin', x: 1700, y: -250 }, { t: 'coin', x: 1800, y: -250 },
-                { t: 'platform', x: 2200, y: -120 }, { t: 'coin', x: 2200, y: -160 },
-                { t: 'moto_x', x: 2600, y: -120 },
-                { t: 'moto_y', x: 3000, y: -120 },
-                { t: 'jump_boost', x: 3500, y: -32 },
-                { t: 'coin', x: 3700, y: -300 }, { t: 'coin', x: 3800, y: -350 }, { t: 'coin', x: 3900, y: -350 },
-                { t: 'spike', x: 4500, y: -32 }, { t: 'spike', x: 4532, y: -32 }, { t: 'spike', x: 4564, y: -32 },
-                { t: 'ramp', x: 4800, y: -64 },
-                { t: 'platform', x: 5200, y: -150 },
-                { t: 'stop_point', x: 5500, y: -150 },
-                { t: 'jump_boost', x: 5800, y: -32 },
-                { t: 'coin', x: 6000, y: -200 }, { t: 'coin', x: 6050, y: -200 }, { t: 'coin', x: 6100, y: -200 },
-                { t: 'end_flag', x: 6500, y: -32 }
+                { t: 'coin', x: 1600, y: -180 }, { t: 'coin', x: 1650, y: -200 },
+                // Moving Platforms Over "Lava/Pit" (Simulated by gap)
+                { t: 'moto_x', x: 2000, y: -100 },
+                { t: 'moto_y', x: 2400, y: -150 },
+                { t: 'platform', x: 2700, y: -150 },
+                // Stop Point & Boost
+                { t: 'stop_point', x: 3000, y: -32 },
+                { t: 'jump_boost', x: 3200, y: -32 },
+                { t: 'coin', x: 3300, y: -300 }, { t: 'coin', x: 3400, y: -350 }, { t: 'coin', x: 3500, y: -300 },
+                { t: 'spike', x: 3600, y: -32 }, { t: 'spike', x: 3640, y: -32 },
+                // Final Stretch
+                { t: 'ramp', x: 4000, y: -64 },
+                { t: 'end_flag', x: 4500, y: -32 }
             ]
         };
 
+        // ==========================================
+        // 3. GAME ENGINE (PHASER 3)
+        // ==========================================
         let gameInstance;
-        let isPaused = false;
-
-        // PROFESSIONAL ORIENTATION HANDLER - Fixes all portrait layout bugs
-        function checkOrientation() {
-            const overlay = document.getElementById('orientation-overlay');
-            if (!gameInstance) return;
-            const scene = gameInstance.scene.getScene('PlayScene');
-            if (!scene) return;
-
-            const isPortrait = window.innerWidth < window.innerHeight || window.matchMedia("(orientation: portrait)").matches;
-
-            if (isPortrait) {
-                overlay.style.display = 'flex';
-                if (!scene.scene.isPaused()) scene.scene.pause();
-            } else {
-                overlay.style.display = 'none';
-                if (scene.scene.isPaused() && !isPaused) {
-                    scene.scene.resume();
-                }
-            }
-        }
-
+        
         class BootScene extends Phaser.Scene {
             constructor() { super('BootScene'); }
-            
             preload() {
-                // Background & Essentials - fallbacks guaranteed
-                this.load.image('bg', 'img/images (1).png');
-                this.load.image('dirt', 'img/dirt.png');
+                // User's explicit requested background
+                this.load.image('bg', 'images (1).png');
+                
                 this.load.image('grass', 'img/grass.png');
+                this.load.image('dirt', 'img/dirt.png');
                 this.load.image('spike', 'img/spike.png');
                 this.load.image('boost', 'img/boost.png');
                 this.load.image('run', 'img/running.gif');
                 this.load.image('roll', 'img/rolling.gif');
                 this.load.image('ring', 'img/ring.gif');
 
-                // Instant professional fallbacks
+                // Instant Canvas Fallbacks
                 let g = this.make.graphics({ x:0, y:0, add:false });
-                g.fillStyle(0xFFD700); g.fillCircle(16,16,12); g.fillStyle(0x000); g.fillCircle(16,16,8);
-                g.generateTexture('fb_ring', 32, 32);
-                g.clear(); g.fillStyle(0x228B22); g.fillRect(0,0,32,8); g.fillStyle(0x8B4513); g.fillRect(0,8,32,24);
-                g.generateTexture('fb_grass', 32, 32);
-                g.clear(); g.fillStyle(0x5C3A21); g.fillRect(0,0,32,32);
-                g.generateTexture('fb_dirt', 32, 32);
-                g.clear(); g.fillStyle(0xAAAAAA); g.fillTriangle(16,0, 32,32, 0,32);
-                g.generateTexture('fb_spike', 32, 32);
-                g.clear(); g.fillStyle(0xE3000F); g.fillRect(0,16,32,16); g.fillStyle(0xFFD700); g.fillRect(4,8,24,8);
-                g.generateTexture('fb_boost', 32, 32);
-                g.clear(); g.fillStyle(0x0044CC); g.fillCircle(16,16,14); g.fillStyle(0xFFFFFF); g.fillCircle(22,12,4);
-                g.generateTexture('fb_run', 32, 32);
-                g.clear(); g.fillStyle(0x0044CC); g.fillCircle(16,16,12); g.lineStyle(4, 0x66CCFF); g.strokeCircle(16,16,10);
-                g.generateTexture('fb_roll', 32, 32);
-                g.clear(); g.fillStyle(0xA0522D); g.fillRect(0,0,64,16);
-                g.generateTexture('fb_platform', 64, 16);
-                g.clear(); g.fillStyle(0xFF8C00); g.fillRect(0,0,64,16);
-                g.generateTexture('fb_moto_x', 64, 16);
-                g.clear(); g.fillStyle(0xFF4500); g.fillRect(0,0,64,16);
-                g.generateTexture('fb_moto_y', 64, 16);
+                g.fillStyle(0xFFD700); g.fillCircle(16,16,12); g.fillStyle(0x000); g.fillCircle(16,16,8); g.generateTexture('fb_ring', 32, 32);
+                g.clear(); g.fillStyle(0x228B22); g.fillRect(0,0,32,32); g.generateTexture('fb_grass', 32, 32);
+                g.clear(); g.fillStyle(0x5C4033); g.fillRect(0,0,32,32); g.generateTexture('fb_dirt', 32, 32);
+                g.clear(); g.fillStyle(0xAAAAAA); g.fillTriangle(16,0, 32,32, 0,32); g.generateTexture('fb_spike', 32, 32);
+                g.clear(); g.fillStyle(0xE3000F); g.fillRect(0,16,32,16); g.fillStyle(0xFFD700); g.fillRect(4,8,24,8); g.generateTexture('fb_boost', 32, 32);
+                g.clear(); g.fillStyle(0x0044CC); g.fillCircle(16,16,14); g.fillStyle(0xFFFFFF); g.fillCircle(22,12,4); g.generateTexture('fb_run', 32, 32);
+                g.clear(); g.fillStyle(0x0044CC); g.fillCircle(16,16,12); g.lineStyle(4, 0x66CCFF); g.strokeCircle(16,16,10); g.generateTexture('fb_roll', 32, 32);
+                g.clear(); g.fillStyle(0xA0522D); g.fillRect(0,0,64,16); g.generateTexture('fb_platform', 64, 16);
+                g.clear(); g.fillStyle(0xFF8C00); g.fillRect(0,0,64,16); g.generateTexture('fb_moto_x', 64, 16);
+                g.clear(); g.fillStyle(0xFF4500); g.fillRect(0,0,64,16); g.generateTexture('fb_moto_y', 64, 16);
+                g.clear(); g.fillStyle(0x000033); g.fillRect(0,0,64,64); g.generateTexture('fb_bg', 64, 64);
             }
-
             create() {
                 const urlParams = new URLSearchParams(window.location.search);
                 const levelName = urlParams.get('level');
-                let levelData = TRIAL_LEVEL;
+                let levelData = MEGA_LEVEL;
                 if (levelName) {
                     try {
-                        const customLevels = JSON.parse(localStorage.getItem('sonic_custom_levels')) || [];
+                        const customLevels = JSON.parse(localStorage.getItem('sonic_custom_levels')) ||[];
                         const found = customLevels.find(l => l.name === levelName);
                         if (found) levelData = found;
                     } catch(e) {}
@@ -377,74 +257,72 @@
             init(data) {
                 this.levelData = data.level;
                 this.groundY = 1000; 
-                this.baseSpeed = 11 * (this.levelData.speed || 1);
+                this.baseSpeed = 9 * (this.levelData.speed || 1);
                 this.currentRunSpeed = this.baseSpeed;
                 this.rings = 0;
-                document.getElementById('score-hud').innerText = `RINGS: 0`;
-                document.getElementById('death-menu').style.display = 'none';
-                document.getElementById('win-menu').style.display = 'none';
+                this.isPaused = false;
             }
 
             create() {
-                this.matter.world.setGravity(0, 2); 
+                this.matter.world.setGravity(0, 2.5); 
                 
-                // PROFESSIONAL PARALLAX BACKGROUND FIX
-                const bgKey = this.textures.exists('bg') ? 'bg' : 'fb_grass';
-                this.bg = this.add.tileSprite(0, 0, this.scale.width * 1.5, this.scale.height * 1.5, bgKey);
-                this.bg.setOrigin(0, 0).setScrollFactor(0, 0).setDepth(-10);
-                this.bg.tileScaleX = 0.5;
-                this.bg.tileScaleY = 0.5;
+                // --- STRATIFIED ENVIRONMENT ---
+                // 1. Parallax BG (images (1).png)
+                this.bg = this.add.tileSprite(0, 0, 8000, 2000, this.textures.exists('bg') ? 'bg' : 'fb_bg');
+                this.bg.setOrigin(0,0).setScrollFactor(0.05).setDepth(-10);
+                this.bg.tileScaleX = 0.5; this.bg.tileScaleY = 0.5; // Prevent massive zoom
 
-                // Listen for resize to keep background covering screen
-                this.scale.on('resize', () => {
-                    if (this.bg) this.bg.setSize(this.scale.width * 1.5, this.scale.height * 1.5);
-                }, this);
+                // 2. Dirt Layer (Infinite depth)
+                this.dirt = this.add.tileSprite(0, this.groundY + 32, 100000, 2000, this.textures.exists('dirt') ? 'dirt' : 'fb_dirt');
+                this.dirt.setOrigin(0, 0);
 
-                // GROUND LAYERS
-                this.groundBody = this.matter.add.rectangle(50000, this.groundY + 16, 100000, 32, { isStatic: true, friction: 0.1 });
-                this.groundVisual = this.add.tileSprite(0, this.groundY, 100000, 32, this.textures.exists('grass') ? 'grass' : 'fb_grass');
-                this.groundVisual.setOrigin(0, 0);
+                // 3. Grass Layer
+                this.grass = this.add.tileSprite(0, this.groundY, 100000, 32, this.textures.exists('grass') ? 'grass' : 'fb_grass');
+                this.grass.setOrigin(0, 0);
 
-                this.dirtVisual = this.add.tileSprite(0, this.groundY + 32, 100000, 1000, this.textures.exists('dirt') ? 'dirt' : 'fb_dirt');
-                this.dirtVisual.setOrigin(0, 0);
+                // Invisible Solid Ground Body
+                this.matter.add.rectangle(50000, this.groundY + 16, 100000, 32, { isStatic: true, friction: 0.1 });
 
-                this.levelObjects =[];
+                this.levelObjects = [];
                 this.ringsToRemove =[];
-                this.scatteredRings =[];
                 
                 this.createPlayer();
                 this.loadLevelObjects();
-                this.setupControls();
+                this.setupHTMLControls();
                 this.setupCollisions();
 
-                // Camera - smooth follow with left offset for classic feel
-                this.cameras.main.startFollow(this.player, true, 0.08, 0.08, -this.scale.width / 4, 0);
+                this.cameras.main.setBounds(0, -2000, 100000, 4000);
+                this.cameras.main.startFollow(this.player, true, 0.1, 0.1, -this.scale.width / 4, 100);
+                
+                this.updateHUD();
             }
 
             createPlayer() {
-                this.playerState = 'running';
+                this.playerState = 'running'; // running, rolling, stopped, dead, won, invulnerable
                 this.isTouchingRamp = false;
                 this.isGrounded = false;
-                this.isInvulnerable = false;
+                this.invulnTimer = 0;
 
-                this.player = this.matter.add.sprite(100, this.groundY - 60, this.textures.exists('run') ? 'run' : 'fb_run', null, {
-                    shape: { type: 'circle', radius: 16 },
-                    friction: 0.005, restitution: 0, label: 'player'
+                this.player = this.matter.add.sprite(100, this.groundY - 100, this.textures.exists('run') ? 'run' : 'fb_run', null, {
+                    shape: { type: 'circle', radius: 14 },
+                    friction: 0.001, restitution: 0, label: 'player'
                 });
-                this.player.setDisplaySize(40, 40);
+                
+                // STRICT DIMENSIONS TO PREVENT GIANT GIFS
+                this.player.setDisplaySize(36, 36);
                 this.player.setFixedRotation();
             }
 
             loadLevelObjects() {
                 this.levelData.objects.forEach(obj => {
-                    const y = this.groundY + obj.y + 16;
+                    const y = this.groundY + obj.y;
                     let tex, sprite;
 
                     switch(obj.t) {
                         case 'coin':
                             tex = this.textures.exists('ring') ? 'ring' : 'fb_ring';
                             sprite = this.matter.add.sprite(obj.x, y, tex, null, { isStatic: true, isSensor: true, label: 'ring' });
-                            sprite.setDisplaySize(24, 24); 
+                            sprite.setDisplaySize(20, 20);
                             break;
                         case 'spike':
                             tex = this.textures.exists('spike') ? 'spike' : 'fb_spike';
@@ -460,13 +338,11 @@
                             sprite.setDisplaySize(32, 32);
                             break;
                         case 'ramp':
-                            const rampVerts =[{x:0, y:64}, {x:128, y:64}, {x:128, y:0}];
-                            sprite = this.matter.add.sprite(obj.x + 64, y, 'fb_grass', null, { 
-                                shape: { type: 'fromVerts', verts: rampVerts }, 
+                            sprite = this.matter.add.sprite(obj.x + 64, y, this.textures.exists('grass') ? 'grass' : 'fb_grass', null, { 
+                                shape: { type: 'fromVerts', verts:[{x:0, y:64}, {x:128, y:64}, {x:128, y:0}] }, 
                                 isStatic: true, label: 'ramp' 
                             });
-                            sprite.setDisplaySize(128, 64);
-                            sprite.setTint(0x88FF88); 
+                            sprite.setDisplaySize(128, 64); sprite.setTint(0xAAFFAA); 
                             break;
                         case 'platform':
                             sprite = this.matter.add.sprite(obj.x, y, 'fb_platform', null, { isStatic: true, label: 'platform' });
@@ -480,64 +356,63 @@
                             break;
                         case 'stop_point':
                             sprite = this.matter.add.sprite(obj.x, y, 'fb_spike', null, { isStatic: true, isSensor: true, label: 'stop_point' });
-                            sprite.setDisplaySize(32, 32);
-                            sprite.setTint(0xFF0000);
+                            sprite.setDisplaySize(32, 32); sprite.setTint(0xFF0000);
                             break;
                         case 'start_flag':
                             sprite = this.matter.add.sprite(obj.x, y, 'fb_platform', null, { isStatic: true, isSensor: true });
-                            sprite.setDisplaySize(16, 64); 
-                            sprite.setTint(0x00FF00);
-                            this.player.setPosition(obj.x, y - 40); 
+                            sprite.setDisplaySize(10, 64); sprite.setTint(0x00FF00);
+                            this.player.setPosition(obj.x, y - 40);
                             break;
                         case 'end_flag':
                             sprite = this.matter.add.sprite(obj.x, y, 'fb_platform', null, { isStatic: true, isSensor: true, label: 'end_flag' });
-                            sprite.setDisplaySize(16, 64);
-                            sprite.setTint(0xFFFFFF);
+                            sprite.setDisplaySize(10, 64); sprite.setTint(0xFFFFFF);
                             break;
                     }
                     if(sprite) { sprite.objType = obj.t; this.levelObjects.push(sprite); }
                 });
             }
 
-            setupControls() {
-                this.input.addPointer(2);
+            setupHTMLControls() {
                 this.rollBtnDown = false;
-                this.cursors = this.input.keyboard.createCursorKeys();
                 
-                const bR = document.getElementById('btn-roll');
-                const bJ = document.getElementById('btn-jump');
-                const tL = document.getElementById('left-tap-zone');
-                const tR = document.getElementById('right-tap-zone');
+                // Connect HTML Buttons to Phaser
+                const bindTouch = (id, downFn, upFn) => {
+                    const el = document.getElementById(id);
+                    el.addEventListener('pointerdown', downFn);
+                    if(upFn) { el.addEventListener('pointerup', upFn); el.addEventListener('pointerout', upFn); }
+                };
+
+                bindTouch('btn-roll', () => this.rollBtnDown = true, () => this.rollBtnDown = false);
+                bindTouch('btn-jump', () => this.triggerJump());
+                bindTouch('touch-left', () => this.rollBtnDown = true, () => this.rollBtnDown = false);
+                bindTouch('touch-right', () => this.triggerJump());
+
+                // Modals
+                document.getElementById('btn-pause').onclick = () => this.togglePause();
+                document.getElementById('btn-resume').onclick = () => this.togglePause();
                 
-                const rollOn = () => this.rollBtnDown = true;
-                const rollOff = () => this.rollBtnDown = false;
-                
-                [bR, tL].forEach(el => {
-                    el.addEventListener('pointerdown', rollOn);
-                    el.addEventListener('pointerup', rollOff);
-                    el.addEventListener('pointerout', rollOff);
-                    el.addEventListener('pointercancel', rollOff);
-                });
-                
-                [bJ, tR].forEach(el => {
-                    el.addEventListener('pointerdown', () => this.triggerJump());
-                });
+                const restartHandler = () => {
+                    document.querySelectorAll('.modal-overlay').forEach(el => el.style.display = 'none');
+                    this.scene.restart();
+                };
+                document.getElementById('btn-restart-death').onclick = restartHandler;
+                document.getElementById('btn-restart-win').onclick = restartHandler;
             }
 
             triggerJump() {
+                if(this.isPaused) return;
                 if (this.playerState === 'stopped') {
                     this.playerState = 'running';
-                } else if (this.isGrounded && this.playerState !== 'dead') {
+                } else if (this.isGrounded && !['dead','won'].includes(this.playerState)) {
                     this.player.setVelocityY(-14);
                     this.isGrounded = false;
-                    playRetroSound('jump');
+                    playSFX('jump');
                     
                     if(this.playerState === 'rolling') {
                         this.playerState = 'running';
-                        this.player.setFixedRotation();
-                        this.player.rotation = 0;
+                        this.player.setFixedRotation(); this.player.rotation = 0;
                         this.player.setTexture(this.textures.exists('run') ? 'run' : 'fb_run');
-                        this.player.setDisplaySize(40, 40);
+                        this.player.setDisplaySize(36, 36);
                     }
                 }
             }
@@ -546,7 +421,7 @@
                 this.matter.world.on('collisionstart', (event) => {
                     event.pairs.forEach(pair => {
                         const { bodyA, bodyB } = pair;
-                        const labels =[bodyA.label, bodyB.label];
+                        const labels = [bodyA.label, bodyB.label];
                         
                         if (labels.includes('player')) {
                             const other = bodyA.label === 'player' ? bodyB : bodyA;
@@ -555,19 +430,19 @@
                                 if (!this.ringsToRemove.includes(other.gameObject)) {
                                     this.ringsToRemove.push(other.gameObject);
                                     this.rings++;
-                                    document.getElementById('score-hud').innerText = `RINGS: ${this.rings}`;
-                                    playRetroSound('ring');
+                                    this.updateHUD();
+                                    playSFX('ring');
                                 }
                             } else if (other.label === 'spike') {
                                 this.hitSpike();
                             } else if (other.label === 'boost') {
-                                this.player.setVelocityY(-20);
-                                playRetroSound('boost');
+                                this.player.setVelocityY(-22);
+                                playSFX('boost');
                             } else if (other.label === 'stop_point') {
                                 this.playerState = 'stopped';
                                 this.player.setVelocity(0, 0);
                             } else if (other.label === 'end_flag') {
-                                this.win();
+                                this.triggerWin();
                             }
                         }
                     });
@@ -584,148 +459,127 @@
                 });
             }
 
+            updateHUD() {
+                document.getElementById('score-hud').innerText = `RINGS: ${this.rings}`;
+            }
+
             hitSpike() {
-                if (this.playerState === 'dead' || this.isInvulnerable) return;
+                if (['dead','won'].includes(this.playerState) || this.time.now < this.invulnTimer) return;
 
                 if (this.rings > 0) {
-                    playRetroSound('ringloss');
-                    this.player.setVelocity(-5, -10);
-                    this.playerState = 'hurt';
-                    this.isInvulnerable = true;
-                    
-                    let ringCountToScatter = Math.min(this.rings, 20);
+                    // CLASSIC RING DROP EFFECT
+                    playSFX('ring_loss');
+                    const dropCount = Math.min(this.rings, 12);
                     this.rings = 0;
-                    document.getElementById('score-hud').innerText = `RINGS: 0`;
-
-                    const tex = this.textures.exists('ring') ? 'ring' : 'fb_ring';
-                    for(let i=0; i<ringCountToScatter; i++) {
-                        let r = this.matter.add.sprite(this.player.x, this.player.y, tex, null, {
-                            shape: { type: 'circle', radius: 10 },
-                            friction: 0.1, restitution: 0.8,
-                            collisionFilter: { group: -1 }
+                    this.updateHUD();
+                    
+                    for(let i=0; i<dropCount; i++) {
+                        let r = this.matter.add.sprite(this.player.x, this.player.y, this.textures.exists('ring') ? 'ring' : 'fb_ring', null, {
+                            isSensor: false, restitution: 0.8, friction: 0.05
                         });
-                        r.setDisplaySize(20,20);
-                        r.setVelocity(Phaser.Math.Between(-8, 8), Phaser.Math.Between(-12, -5));
-                        this.scatteredRings.push(r);
+                        r.setDisplaySize(16,16);
+                        r.setVelocity(Phaser.Math.Between(-6, 6), Phaser.Math.Between(-12, -5));
+                        
+                        // Disable collision with player temporarily, destroy after 3s
+                        r.setCollisionCategory(2);
+                        this.player.setCollidesWith([1]); // Default is 1
+                        
+                        this.time.delayedCall(3000, () => { if(r && r.active) r.destroy(); });
                     }
-
-                    this.tweens.add({
-                        targets: this.player, alpha: 0.2, yoyo: true, repeat: 10, duration: 100,
-                        onComplete: () => {
-                            this.isInvulnerable = false;
-                            this.player.alpha = 1;
-                            if(this.playerState === 'hurt') this.playerState = 'running';
-                        }
-                    });
-
-                    setTimeout(() => {
-                        this.scatteredRings.forEach(r => { if(r && r.active) r.destroy(); });
-                        this.scatteredRings =[];
-                    }, 3000);
+                    
+                    this.player.setVelocity(-5, -8); // Knockback
+                    this.invulnTimer = this.time.now + 2000;
+                    
+                    // Blink effect
+                    this.tweens.add({ targets: this.player, alpha: 0.2, yoyo: true, repeat: 10, duration: 100, onComplete: () => this.player.alpha = 1 });
 
                 } else {
-                    this.die();
+                    // DIE
+                    this.playerState = 'dead';
+                    playSFX('ring_loss'); 
+                    this.player.setStatic(true);
+                    this.cameras.main.shake(300, 0.02);
+                    setTimeout(() => { document.getElementById('death-modal').style.display = 'flex'; }, 1000);
                 }
             }
 
-            die() {
-                if (this.playerState === 'dead') return;
-                this.playerState = 'dead';
-                playRetroSound('hurt'); 
-                
-                this.player.setCollidesWith(0);
-                this.player.setVelocity(0, -15);
-                this.player.rotation = 0;
-                
-                setTimeout(() => {
-                    document.getElementById('death-menu').style.display = 'flex';
-                }, 1000);
-            }
-
-            win() {
-                if (this.playerState === 'dead' || this.playerState === 'won') return;
+            triggerWin() {
+                if (['dead','won'].includes(this.playerState)) return;
                 this.playerState = 'won';
                 this.player.setVelocity(0,0);
-                playRetroSound('ring');
-                
                 setTimeout(() => {
-                    document.getElementById('win-rings').innerText = `RINGS: ${this.rings}`;
-                    document.getElementById('win-menu').style.display = 'flex';
-                }, 800);
+                    document.getElementById('final-score').innerText = `RINGS COLLECTED: ${this.rings}`;
+                    document.getElementById('win-modal').style.display = 'flex';
+                }, 500);
+            }
+
+            togglePause() {
+                if(['dead','won'].includes(this.playerState)) return;
+                this.isPaused = !this.isPaused;
+                if (this.isPaused) {
+                    this.scene.pause();
+                    document.getElementById('pause-modal').style.display = 'flex';
+                } else {
+                    this.scene.resume();
+                    document.getElementById('pause-modal').style.display = 'none';
+                }
             }
 
             update(time, delta) {
-                if (this.playerState === 'dead') {
-                    this.player.rotation += 0.1;
-                    return;
-                }
-                
-                if (this.playerState === 'won' || isPaused) return;
+                if (['dead','won'].includes(this.playerState) || this.isPaused) return;
 
                 if (this.ringsToRemove.length > 0) {
                     this.ringsToRemove.forEach(r => { if(r && r.active) r.destroy(); });
                     this.ringsToRemove =[];
                 }
 
-                // Moving platforms
+                // Moving Platforms
                 this.levelObjects.forEach(obj => {
                     if (obj.objType === 'moto_x' && obj.body) this.matter.body.setPosition(obj.body, { x: obj.startX + Math.sin(time*0.002)*100, y: obj.y });
                     if (obj.objType === 'moto_y' && obj.body) this.matter.body.setPosition(obj.body, { x: obj.x, y: obj.startY + Math.sin(time*0.002)*100 });
                 });
 
-                // Grounded check
-                const bodies = this.matter.world.getAllBodies().filter(b => !b.isSensor && b.label !== 'player');
-                const raycast = Phaser.Physics.Matter.Matter.Query.ray(bodies, 
-                    { x: this.player.x, y: this.player.y }, 
-                    { x: this.player.x, y: this.player.y + 22 }
-                );
+                // Ground Check
+                const bodies = this.matter.world.getAllBodies().filter(b => !b.isSensor && b.label !== 'player' && b.collisionFilter.category !== 2);
+                const raycast = Phaser.Physics.Matter.Matter.Query.ray(bodies, { x: this.player.x, y: this.player.y }, { x: this.player.x, y: this.player.y + 22 });
                 this.isGrounded = raycast.length > 0;
-
-                const intentRoll = this.rollBtnDown || this.cursors.down.isDown;
-                if (this.cursors.space.isDown || this.cursors.up.isDown) this.triggerJump();
-
-                this.scatteredRings.forEach(r => {
-                    if(r && r.active) r.alpha = (Math.floor(time / 100) % 2 === 0) ? 1 : 0.5;
-                });
-
-                if (this.playerState === 'hurt') {
-                    this.player.setTexture(this.textures.exists('roll') ? 'roll' : 'fb_roll');
-                    this.player.rotation += 0.2;
-                    if(this.isGrounded) this.playerState = 'running';
-                    return;
-                }
 
                 if (this.playerState === 'stopped') {
                     this.player.setTexture(this.textures.exists('run') ? 'run' : 'fb_run');
-                    this.player.setDisplaySize(40, 40);
+                    this.player.setDisplaySize(36, 36);
                     return;
                 }
 
-                if (intentRoll && this.isGrounded && this.playerState === 'running') {
+                // Roll vs Run State Machine
+                if (this.rollBtnDown && this.isGrounded && this.playerState === 'running') {
                     this.playerState = 'rolling';
                     this.player.setTexture(this.textures.exists('roll') ? 'roll' : 'fb_roll');
-                    this.player.setDisplaySize(40, 40); 
+                    this.player.setDisplaySize(36, 36);
                     this.player.setFixedRotation(false); 
-                } else if (!intentRoll && this.playerState === 'rolling') {
+                } else if (!this.rollBtnDown && this.playerState === 'rolling') {
                     this.playerState = 'running';
                     this.player.setTexture(this.textures.exists('run') ? 'run' : 'fb_run');
-                    this.player.setDisplaySize(40, 40);
+                    this.player.setDisplaySize(36, 36);
                     this.player.setFixedRotation();
                     this.player.rotation = 0;
                 }
 
+                // Apply Physics based on state
                 if (this.playerState === 'running') {
                     if (this.isTouchingRamp) {
-                        this.currentRunSpeed = this.baseSpeed * 0.4; 
-                        this.player.setVelocityX(this.currentRunSpeed);
+                        this.currentRunSpeed = this.baseSpeed * 0.4;
                     } else {
                         this.currentRunSpeed = Phaser.Math.Linear(this.currentRunSpeed, this.baseSpeed, 0.1);
+                    }
+                    
+                    // Only enforce velocity if not recovering from spike knockback
+                    if(this.time.now > this.invulnTimer - 1500) {
                         this.player.setVelocityX(this.currentRunSpeed);
                     }
                     
                     if (!this.isGrounded) {
                         this.player.setTexture(this.textures.exists('roll') ? 'roll' : 'fb_roll');
-                        this.player.setDisplaySize(40, 40);
+                        this.player.setDisplaySize(36, 36);
                         this.player.rotation += 0.3;
                     } else {
                         this.player.setTexture(this.textures.exists('run') ? 'run' : 'fb_run');
@@ -733,63 +587,38 @@
                     }
                 } 
                 else if (this.playerState === 'rolling') {
+                    // Momentum physics on flat vs ramp
                     if (!this.isTouchingRamp && this.player.body.velocity.x < this.baseSpeed) {
                         this.player.applyForce({ x: 0.003, y: 0 }); 
                     }
                     if (this.player.body.velocity.x > 1) this.player.rotation += 0.4;
                 }
 
-                // PROFESSIONAL PARALLAX BACKGROUND (fixed)
-                if(this.bg) {
-                    this.bg.tilePositionX = this.cameras.main.scrollX * 0.3;
-                }
+                // Parallax sync
+                if(this.bg) this.bg.tilePositionX = this.cameras.main.scrollX * 0.5;
             }
         }
 
-        // --- INIT GAME ---
+        // ==========================================
+        // 4. BOOTSTRAP RESIZE ENGINE
+        // ==========================================
         function initGame() {
             const config = {
                 type: Phaser.AUTO,
                 parent: 'game-container',
                 scale: { 
                     mode: Phaser.Scale.RESIZE,
-                    width: '100%',
-                    height: '100%'
+                    width: '100%', height: '100%'
                 },
                 backgroundColor: '#4A90E2',
-                physics: { default: 'matter', matter: { gravity: { y: 2 }, debug: false } },
+                physics: { default: 'matter', matter: { gravity: { y: 2.5 }, debug: false } },
                 scene:[BootScene, PlayScene],
                 pixelArt: true
             };
             gameInstance = new Phaser.Game(config);
         }
 
-        function togglePause() {
-            playRetroSound('ring');
-            const scene = gameInstance.scene.getScene('PlayScene');
-            if(!scene) return;
-            
-            isPaused = !isPaused;
-            if (isPaused) {
-                scene.scene.pause();
-                document.getElementById('pause-menu').style.display = 'flex';
-                bgm.pause();
-            } else {
-                scene.scene.resume();
-                document.getElementById('pause-menu').style.display = 'none';
-                if(bgmPlaying) bgm.play().catch(e=>e);
-            }
-        }
-
-        window.onload = () => {
-            initGame();
-            // Give Phaser a moment to boot then check orientation
-            setTimeout(() => {
-                checkOrientation();
-                window.addEventListener('resize', checkOrientation);
-                window.addEventListener('orientationchange', checkOrientation);
-            }, 800);
-        };
+        window.onload = initGame;
     </script>
 </body>
 </html>
