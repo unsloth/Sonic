@@ -7,13 +7,12 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <style>
-        /* PURE PIXEL RETRO VIBE & STRICT LANDSCAPE MATH LOCK */
+        /* PURE PIXEL RETRO VIBE - PROFESSIONAL CLEANUP */
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
         
         *,::after,::before { box-sizing: border-box; margin: 0; padding: 0; user-select: none; touch-action: none; }
         html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: 'Press Start 2P', 'Courier New', cursive; }
         
-        /* Default Landscape Mode */
         #app-wrap {
             position: absolute;
             top: 0; left: 0;
@@ -22,75 +21,120 @@
             background: #000;
         }
 
-        /* Portrait to Landscape Force Lock via Geometry Rotation */
-        @media screen and (orientation: portrait) { 
-            #app-wrap {
-                width: 100vh; 
-                height: 100vw;
-                position: absolute;
-                top: 0;
-                left: 100vw;
-                transform-origin: top left;
-                transform: rotate(90deg);
-            }
-        }
-
         #game-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
 
-        /* --- EXACT PADDING: 50px Sides, 20px Top/Bottom --- */
-        
-        /* HUD Top Left */
-        .hud-text { position: absolute; color: #FFD700; text-shadow: 2px 2px 0 #002D72, -1px -1px 0 #fff; font-size: 14px; pointer-events: none; }
+        /* HUD */
+        .hud-text { 
+            position: absolute; 
+            color: #FFD700; 
+            text-shadow: 2px 2px 0 #002D72, -1px -1px 0 #fff; 
+            font-size: 14px; 
+            pointer-events: none; 
+            z-index: 20;
+        }
         #score-hud { top: 20px; left: 50px; }
-        
+
         /* Pause Bottom Right */
         #pause-ui {
             position: absolute;
             bottom: 20px;
             right: 50px; 
             pointer-events: auto;
+            z-index: 20;
         }
 
-        /* Controls Bottom Left */
+        /* Controls Bottom Left - Responsive sizing */
         #mobile-controls { 
             position: absolute; 
             bottom: 20px; 
             left: 50px; 
-            display: flex; gap: 20px; pointer-events: auto; 
+            display: flex; 
+            gap: 20px; 
+            pointer-events: auto; 
+            z-index: 20;
         }
 
-        /* Buttons */
         .pixel-btn {
-            background: #002D72; border: 3px solid #fff; color: #fff; font-family: 'Press Start 2P', cursive;
-            box-shadow: inset -3px -3px 0 rgba(0,0,0,0.4), 4px 4px 0 #000; font-size: 10px; padding: 12px 15px; cursor: pointer;
-            text-transform: uppercase; transition: transform 0.1s; outline: none;
+            background: #002D72; 
+            border: 3px solid #fff; 
+            color: #fff; 
+            font-family: 'Press Start 2P', cursive;
+            box-shadow: inset -3px -3px 0 rgba(0,0,0,0.4), 4px 4px 0 #000; 
+            font-size: 10px; 
+            padding: 12px 15px; 
+            cursor: pointer;
+            text-transform: uppercase; 
+            transition: transform 0.1s; 
+            outline: none;
         }
-        .pixel-btn:active { transform: translate(4px, 4px); box-shadow: none; background: #FFD700; color: #002D72; }
+        .pixel-btn:active { 
+            transform: translate(4px, 4px); 
+            box-shadow: none; 
+            background: #FFD700; 
+            color: #002D72; 
+        }
         .btn-red { background: #E3000F; }
 
         .control-btn { 
-            width: 70px; height: 70px; border-radius: 50%; background: rgba(0, 45, 114, 0.6); 
-            border: 3px solid rgba(255,255,255,0.6); color: rgba(255,255,255,0.8);
-            display: flex; align-items: center; justify-content: center; font-size: 10px; 
-            box-shadow: 0 5px 0 rgba(0,0,0,0.3); font-family: inherit; cursor: pointer;
+            width: 70px; 
+            height: 70px; 
+            border-radius: 50%; 
+            background: rgba(0, 45, 114, 0.6); 
+            border: 3px solid rgba(255,255,255,0.6); 
+            color: rgba(255,255,255,0.8);
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-size: 10px; 
+            box-shadow: 0 5px 0 rgba(0,0,0,0.3); 
+            font-family: inherit; 
+            cursor: pointer;
         }
-        .control-btn:active { transform: translateY(5px); box-shadow: none; background: rgba(255, 215, 0, 0.8); color: #000; }
+        .control-btn:active { 
+            transform: translateY(5px); 
+            box-shadow: none; 
+            background: rgba(255, 215, 0, 0.8); 
+            color: #000; 
+        }
 
         /* Custom Popup Menus */
         .modal-overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center;
-            pointer-events: auto; z-index: 100;
+            position: absolute; 
+            top: 0; left: 0; 
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); 
+            display: none; 
+            align-items: center; 
+            justify-content: center;
+            pointer-events: auto; 
+            z-index: 100;
         }
         .retro-box {
-            background: #002D72; border: 4px solid #fff; box-shadow: inset -4px -4px 0 rgba(0,0,0,0.6), 8px 8px 0 #000;
-            padding: 30px; display: flex; flex-direction: column; gap: 20px; align-items: center; text-align: center;
+            background: #002D72; 
+            border: 4px solid #fff; 
+            box-shadow: inset -4px -4px 0 rgba(0,0,0,0.6), 8px 8px 0 #000;
+            padding: 30px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 20px; 
+            align-items: center; 
+            text-align: center;
             min-width: 300px;
+            border-radius: 4px;
         }
-        .retro-box h2 { font-size: 18px; margin-bottom: 15px; text-shadow: 2px 2px 0 #000; }
+        .retro-box h2 { 
+            font-size: 18px; 
+            margin-bottom: 15px; 
+            text-shadow: 2px 2px 0 #000; 
+        }
         
         .hidden { display: none !important; }
+
+        /* PROFESSIONAL ORIENTATION OVERLAY - Replaces broken rotate hack */
+        #orientation-overlay .retro-box {
+            max-width: 340px;
+        }
     </style>
 </head>
 <body>
@@ -105,9 +149,8 @@
                 <button class="pixel-btn" onclick="togglePause()">|| PAUSE</button>
             </div>
 
-            <!-- Left transparent invisible block to catch screen taps if buttons missed -->
+            <!-- Tap zones (invisible helpers) -->
             <div id="left-tap-zone" style="position:absolute; bottom:0; left:0; width:40%; height:60%; pointer-events:auto; opacity:0;"></div>
-            <!-- Right tap zone for jumps -->
             <div id="right-tap-zone" style="position:absolute; bottom:0; right:0; width:40%; height:60%; pointer-events:auto; opacity:0;"></div>
 
             <div id="mobile-controls">
@@ -141,11 +184,23 @@
                     <button class="pixel-btn" onclick="navToMenu()" style="width:100%;">CONTINUE</button>
                 </div>
             </div>
+
+            <!-- PROFESSIONAL ORIENTATION OVERLAY -->
+            <div id="orientation-overlay" class="modal-overlay">
+                <div class="retro-box">
+                    <h2 style="color:#FFD700;">📱 ROTATE DEVICE</h2>
+                    <p style="color:#fff; font-size:12px; max-width:280px; line-height:1.4;">
+                        For the best Sonic Dash experience,<br>please rotate your device to <strong>LANDSCAPE</strong> mode!
+                    </p>
+                    <div style="font-size:48px; margin:20px 0; animation: rotateAnim 2s infinite linear;">↔️</div>
+                    <small style="color:#aaa; font-size:9px;">(Portrait mode disabled for proper gameplay)</small>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
-        // --- AUDIO SYNTHESIS ENGINE ---
+        // --- AUDIO SYNTHESIS ENGINE (unchanged - solid) ---
         const bgm = new Audio('sound/sonic.mp3');
         bgm.loop = true;
         bgm.volume = 0.2;
@@ -154,7 +209,12 @@
         if (savedTime) bgm.currentTime = parseFloat(savedTime);
         
         let bgmPlaying = false;
-        function playBGM() { if(!bgmPlaying) { bgm.play().catch(e=>e); bgmPlaying = true; } }
+        function playBGM() { 
+            if(!bgmPlaying) { 
+                bgm.play().catch(e=>e); 
+                bgmPlaying = true; 
+            } 
+        }
         document.addEventListener('pointerdown', playBGM, { once: true });
 
         setInterval(() => {
@@ -190,7 +250,6 @@
                     gain.gain.setValueAtTime(0.3, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
                     osc.start(); osc.stop(ctx.currentTime + 0.3);
                 } else if (type === 'ringloss') {
-                    // Simulates multiple rings scattering
                     osc.type = 'sine'; osc.frequency.setValueAtTime(800, ctx.currentTime);
                     osc.frequency.linearRampToValueAtTime(1500, ctx.currentTime + 0.5);
                     gain.gain.setValueAtTime(0.4, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
@@ -212,46 +271,26 @@
             if(gameInstance) gameInstance.scene.getScene('PlayScene').scene.restart();
         }
 
-        // --- MEGA TRIAL MAP ---
+        // --- MEGA TRIAL MAP (unchanged) ---
         const TRIAL_LEVEL = {
             name: "Mega Trial Zone", speed: 1.0,
             objects:[
-                // Start
                 { t: 'start_flag', x: 200, y: -32 },
-                
-                // Speed buildup
                 { t: 'coin', x: 500, y: -32 }, { t: 'coin', x: 550, y: -32 }, { t: 'coin', x: 600, y: -32 }, { t: 'coin', x: 650, y: -32 },
-                
-                // First obstacle
-                { t: 'spike', x: 1000, y: -32 },
-                { t: 'coin', x: 1000, y: -150 },
-                
-                // Ramp Momentum Test
+                { t: 'spike', x: 1000, y: -32 }, { t: 'coin', x: 1000, y: -150 },
                 { t: 'ramp', x: 1500, y: -64 },
                 { t: 'coin', x: 1600, y: -200 }, { t: 'coin', x: 1700, y: -250 }, { t: 'coin', x: 1800, y: -250 },
-                
-                // Gap and Platforming
                 { t: 'platform', x: 2200, y: -120 }, { t: 'coin', x: 2200, y: -160 },
                 { t: 'moto_x', x: 2600, y: -120 },
                 { t: 'moto_y', x: 3000, y: -120 },
-                
-                // Boost area
                 { t: 'jump_boost', x: 3500, y: -32 },
                 { t: 'coin', x: 3700, y: -300 }, { t: 'coin', x: 3800, y: -350 }, { t: 'coin', x: 3900, y: -350 },
-                
-                // Heavy Spikes (Risk of ring loss)
                 { t: 'spike', x: 4500, y: -32 }, { t: 'spike', x: 4532, y: -32 }, { t: 'spike', x: 4564, y: -32 },
                 { t: 'ramp', x: 4800, y: -64 },
-                
-                // Precision Stop
                 { t: 'platform', x: 5200, y: -150 },
                 { t: 'stop_point', x: 5500, y: -150 },
-                
-                // Final dash
                 { t: 'jump_boost', x: 5800, y: -32 },
                 { t: 'coin', x: 6000, y: -200 }, { t: 'coin', x: 6050, y: -200 }, { t: 'coin', x: 6100, y: -200 },
-                
-                // End
                 { t: 'end_flag', x: 6500, y: -32 }
             ]
         };
@@ -259,13 +298,33 @@
         let gameInstance;
         let isPaused = false;
 
+        // PROFESSIONAL ORIENTATION HANDLER - Fixes all portrait layout bugs
+        function checkOrientation() {
+            const overlay = document.getElementById('orientation-overlay');
+            if (!gameInstance) return;
+            const scene = gameInstance.scene.getScene('PlayScene');
+            if (!scene) return;
+
+            const isPortrait = window.innerWidth < window.innerHeight || window.matchMedia("(orientation: portrait)").matches;
+
+            if (isPortrait) {
+                overlay.style.display = 'flex';
+                if (!scene.scene.isPaused()) scene.scene.pause();
+            } else {
+                overlay.style.display = 'none';
+                if (scene.scene.isPaused() && !isPaused) {
+                    scene.scene.resume();
+                }
+            }
+        }
+
         class BootScene extends Phaser.Scene {
             constructor() { super('BootScene'); }
             
             preload() {
-                // Background & Essentials
-                this.load.image('bg', 'img/images (1).png'); // Requested Background
-                this.load.image('dirt', 'img/dirt.png');     // Requested Dirt Layer
+                // Background & Essentials - fallbacks guaranteed
+                this.load.image('bg', 'img/images (1).png');
+                this.load.image('dirt', 'img/dirt.png');
                 this.load.image('grass', 'img/grass.png');
                 this.load.image('spike', 'img/spike.png');
                 this.load.image('boost', 'img/boost.png');
@@ -273,13 +332,13 @@
                 this.load.image('roll', 'img/rolling.gif');
                 this.load.image('ring', 'img/ring.gif');
 
-                // Fallbacks generated instantly
+                // Instant professional fallbacks
                 let g = this.make.graphics({ x:0, y:0, add:false });
                 g.fillStyle(0xFFD700); g.fillCircle(16,16,12); g.fillStyle(0x000); g.fillCircle(16,16,8);
                 g.generateTexture('fb_ring', 32, 32);
-                g.clear(); g.fillStyle(0x8B4513); g.fillRect(0,0,32,32); g.fillStyle(0x228B22); g.fillRect(0,0,32,8);
+                g.clear(); g.fillStyle(0x228B22); g.fillRect(0,0,32,8); g.fillStyle(0x8B4513); g.fillRect(0,8,32,24);
                 g.generateTexture('fb_grass', 32, 32);
-                g.clear(); g.fillStyle(0x5C3A21); g.fillRect(0,0,32,32); // Dirt fallback color
+                g.clear(); g.fillStyle(0x5C3A21); g.fillRect(0,0,32,32);
                 g.generateTexture('fb_dirt', 32, 32);
                 g.clear(); g.fillStyle(0xAAAAAA); g.fillTriangle(16,0, 32,32, 0,32);
                 g.generateTexture('fb_spike', 32, 32);
@@ -303,7 +362,7 @@
                 let levelData = TRIAL_LEVEL;
                 if (levelName) {
                     try {
-                        const customLevels = JSON.parse(localStorage.getItem('sonic_custom_levels')) ||[];
+                        const customLevels = JSON.parse(localStorage.getItem('sonic_custom_levels')) || [];
                         const found = customLevels.find(l => l.name === levelName);
                         if (found) levelData = found;
                     } catch(e) {}
@@ -329,17 +388,23 @@
             create() {
                 this.matter.world.setGravity(0, 2); 
                 
-                // BACKGROUND (Fixed size scaling)
-                this.bg = this.add.tileSprite(0, 0, 5000, 2000, this.textures.exists('bg') ? 'bg' : 'fb_grass');
-                this.bg.setOrigin(0,0).setScrollFactor(0.05).setDepth(-10);
-                this.bg.tileScaleX = 0.5; this.bg.tileScaleY = 0.5;
+                // PROFESSIONAL PARALLAX BACKGROUND FIX
+                const bgKey = this.textures.exists('bg') ? 'bg' : 'fb_grass';
+                this.bg = this.add.tileSprite(0, 0, this.scale.width * 1.5, this.scale.height * 1.5, bgKey);
+                this.bg.setOrigin(0, 0).setScrollFactor(0, 0).setDepth(-10);
+                this.bg.tileScaleX = 0.5;
+                this.bg.tileScaleY = 0.5;
 
-                // LAYER 1: GRASS (Top thin layer)
+                // Listen for resize to keep background covering screen
+                this.scale.on('resize', () => {
+                    if (this.bg) this.bg.setSize(this.scale.width * 1.5, this.scale.height * 1.5);
+                }, this);
+
+                // GROUND LAYERS
                 this.groundBody = this.matter.add.rectangle(50000, this.groundY + 16, 100000, 32, { isStatic: true, friction: 0.1 });
                 this.groundVisual = this.add.tileSprite(0, this.groundY, 100000, 32, this.textures.exists('grass') ? 'grass' : 'fb_grass');
                 this.groundVisual.setOrigin(0, 0);
 
-                // LAYER 2: DIRT (Deep endless layer underneath grass)
                 this.dirtVisual = this.add.tileSprite(0, this.groundY + 32, 100000, 1000, this.textures.exists('dirt') ? 'dirt' : 'fb_dirt');
                 this.dirtVisual.setOrigin(0, 0);
 
@@ -352,12 +417,12 @@
                 this.setupControls();
                 this.setupCollisions();
 
-                // Camera
+                // Camera - smooth follow with left offset for classic feel
                 this.cameras.main.startFollow(this.player, true, 0.08, 0.08, -this.scale.width / 4, 0);
             }
 
             createPlayer() {
-                this.playerState = 'running'; // running, rolling, stopped, dead, hurt
+                this.playerState = 'running';
                 this.isTouchingRamp = false;
                 this.isGrounded = false;
                 this.isInvulnerable = false;
@@ -439,7 +504,6 @@
                 this.rollBtnDown = false;
                 this.cursors = this.input.keyboard.createCursorKeys();
                 
-                // HTML Buttons & Tap Zones
                 const bR = document.getElementById('btn-roll');
                 const bJ = document.getElementById('btn-jump');
                 const tL = document.getElementById('left-tap-zone');
@@ -448,15 +512,16 @@
                 const rollOn = () => this.rollBtnDown = true;
                 const rollOff = () => this.rollBtnDown = false;
                 
-                bR.addEventListener('pointerdown', rollOn);
-                bR.addEventListener('pointerup', rollOff);
-                bR.addEventListener('pointerout', rollOff);
-                tL.addEventListener('pointerdown', rollOn);
-                tL.addEventListener('pointerup', rollOff);
-                tL.addEventListener('pointerout', rollOff);
+                [bR, tL].forEach(el => {
+                    el.addEventListener('pointerdown', rollOn);
+                    el.addEventListener('pointerup', rollOff);
+                    el.addEventListener('pointerout', rollOff);
+                    el.addEventListener('pointercancel', rollOff);
+                });
                 
-                bJ.addEventListener('pointerdown', () => this.triggerJump());
-                tR.addEventListener('pointerdown', () => this.triggerJump());
+                [bJ, tR].forEach(el => {
+                    el.addEventListener('pointerdown', () => this.triggerJump());
+                });
             }
 
             triggerJump() {
@@ -519,35 +584,31 @@
                 });
             }
 
-            // CLASSIC RING LOSS MECHANIC
             hitSpike() {
                 if (this.playerState === 'dead' || this.isInvulnerable) return;
 
                 if (this.rings > 0) {
-                    // Hit with rings: Scatter rings & survive
                     playRetroSound('ringloss');
                     this.player.setVelocity(-5, -10);
                     this.playerState = 'hurt';
                     this.isInvulnerable = true;
                     
-                    let ringCountToScatter = Math.min(this.rings, 20); // Cap visual scatter to 20 to prevent lag
+                    let ringCountToScatter = Math.min(this.rings, 20);
                     this.rings = 0;
                     document.getElementById('score-hud').innerText = `RINGS: 0`;
 
-                    // Generate scattered physical rings
                     const tex = this.textures.exists('ring') ? 'ring' : 'fb_ring';
                     for(let i=0; i<ringCountToScatter; i++) {
                         let r = this.matter.add.sprite(this.player.x, this.player.y, tex, null, {
                             shape: { type: 'circle', radius: 10 },
                             friction: 0.1, restitution: 0.8,
-                            collisionFilter: { group: -1 } // Don't collide with each other immediately
+                            collisionFilter: { group: -1 }
                         });
                         r.setDisplaySize(20,20);
                         r.setVelocity(Phaser.Math.Between(-8, 8), Phaser.Math.Between(-12, -5));
                         this.scatteredRings.push(r);
                     }
 
-                    // Blink player for 2 seconds (I-Frames)
                     this.tweens.add({
                         targets: this.player, alpha: 0.2, yoyo: true, repeat: 10, duration: 100,
                         onComplete: () => {
@@ -557,14 +618,12 @@
                         }
                     });
 
-                    // Remove scattered rings after 3 seconds
                     setTimeout(() => {
                         this.scatteredRings.forEach(r => { if(r && r.active) r.destroy(); });
                         this.scatteredRings =[];
                     }, 3000);
 
                 } else {
-                    // Dead
                     this.die();
                 }
             }
@@ -574,8 +633,7 @@
                 this.playerState = 'dead';
                 playRetroSound('hurt'); 
                 
-                // Classic death jump
-                this.player.setCollidesWith(0); // Disable collisions
+                this.player.setCollidesWith(0);
                 this.player.setVelocity(0, -15);
                 this.player.rotation = 0;
                 
@@ -598,7 +656,6 @@
 
             update(time, delta) {
                 if (this.playerState === 'dead') {
-                    // Allow player to fall off screen during death
                     this.player.rotation += 0.1;
                     return;
                 }
@@ -616,6 +673,7 @@
                     if (obj.objType === 'moto_y' && obj.body) this.matter.body.setPosition(obj.body, { x: obj.x, y: obj.startY + Math.sin(time*0.002)*100 });
                 });
 
+                // Grounded check
                 const bodies = this.matter.world.getAllBodies().filter(b => !b.isSensor && b.label !== 'player');
                 const raycast = Phaser.Physics.Matter.Matter.Query.ray(bodies, 
                     { x: this.player.x, y: this.player.y }, 
@@ -626,7 +684,6 @@
                 const intentRoll = this.rollBtnDown || this.cursors.down.isDown;
                 if (this.cursors.space.isDown || this.cursors.up.isDown) this.triggerJump();
 
-                // Blinking rings visual
                 this.scatteredRings.forEach(r => {
                     if(r && r.active) r.alpha = (Math.floor(time / 100) % 2 === 0) ? 1 : 0.5;
                 });
@@ -634,7 +691,7 @@
                 if (this.playerState === 'hurt') {
                     this.player.setTexture(this.textures.exists('roll') ? 'roll' : 'fb_roll');
                     this.player.rotation += 0.2;
-                    if(this.isGrounded) this.playerState = 'running'; // recover when hitting ground
+                    if(this.isGrounded) this.playerState = 'running';
                     return;
                 }
 
@@ -682,9 +739,9 @@
                     if (this.player.body.velocity.x > 1) this.player.rotation += 0.4;
                 }
 
-                // Parallax BG
+                // PROFESSIONAL PARALLAX BACKGROUND (fixed)
                 if(this.bg) {
-                    this.bg.tilePositionX = this.cameras.main.scrollX * 0.5;
+                    this.bg.tilePositionX = this.cameras.main.scrollX * 0.3;
                 }
             }
         }
@@ -724,7 +781,15 @@
             }
         }
 
-        window.onload = initGame;
+        window.onload = () => {
+            initGame();
+            // Give Phaser a moment to boot then check orientation
+            setTimeout(() => {
+                checkOrientation();
+                window.addEventListener('resize', checkOrientation);
+                window.addEventListener('orientationchange', checkOrientation);
+            }, 800);
+        };
     </script>
 </body>
 </html>
