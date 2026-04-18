@@ -5,95 +5,146 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Sonic Dash - Menu</title>
     <style>
-        /* COMPRESSED CSS AS REQUESTED */
-        *,::after,::before{box-sizing:border-box;margin:0;padding:0;user-select:none}html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Courier New',Courier,monospace;color:#fff}#app-wrap{position:absolute;top:0;left:0;width:100vw;height:100vh;background:url('img/menu.png') center/cover no-repeat;display:flex;align-items:center;justify-content:center}@media screen and (orientation:portrait){#app-wrap{transform:rotate(-90deg);transform-origin:left top;width:100vh;height:100vw;top:100%;left:0}}.glass-panel{background:rgba(255,255,255,.1);backdrop-filter:blur(15px);-webkit-backdrop-filter:blur(15px);border:1px solid rgba(255,255,255,.25);border-radius:24px;box-shadow:0 10px 40px rgba(0,0,0,.4);padding:40px;display:flex;flex-direction:column;align-items:center;gap:20px;min-width:320px}h1{font-family:'Impact',sans-serif;font-size:3.5rem;text-transform:uppercase;text-shadow:4px 4px 0 #002D72,0 0 15px #FFD700;color:#FFD700;letter-spacing:3px;margin-bottom:10px;font-style:italic}.btn{background:rgba(0,0,0,.3);border:2px solid rgba(255,255,255,.4);color:#fff;font-family:'Impact',sans-serif;font-size:1.5rem;text-transform:uppercase;padding:12px 30px;border-radius:12px;cursor:pointer;transition:all .2s ease;text-shadow:1px 1px 0 #000;width:100%;max-width:250px}.btn:hover{background:rgba(255,215,0,.8);color:#000;border-color:#fff;text-shadow:none;transform:scale(1.05);box-shadow:0 0 20px rgba(255,215,0,.5)}.btn:active{transform:scale(.95)}.modal-overlay{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:100;opacity:0;transition:opacity .3s}.modal-overlay.show{display:flex;opacity:1}.modal-content{width:90%;max-width:500px;max-height:80vh;display:flex;flex-direction:column;gap:15px}h2{font-family:'Impact',sans-serif;color:#FFD700;font-size:2.5rem;text-align:center;text-shadow:2px 2px 0 #000;font-style:italic}#level-list{background:rgba(0,0,0,.4);border-radius:12px;padding:10px;overflow-y:auto;flex:1;max-height:40vh;border:1px solid rgba(255,255,255,.2)}.level-item{display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid rgba(255,255,255,.1)}.level-item:last-child{border:none}.level-name{font-size:1.2rem;font-weight:bold;text-shadow:1px 1px 0 #000}.level-play-btn{background:rgba(0,255,0,.3);border:1px solid rgba(255,255,255,.5);color:#fff;padding:5px 15px;border-radius:8px;cursor:pointer;font-weight:bold;font-family:inherit}.level-play-btn:hover{background:rgba(0,255,0,.7);transform:scale(1.05)}.btn-row{display:flex;gap:10px;justify-content:center;margin-top:10px}.btn-row .btn{font-size:1.2rem;padding:10px}
+        /* COMPRESSED CSS - PURE PIXEL RETRO VIBE */
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        *,::after,::before{box-sizing:border-box;margin:0;padding:0;user-select:none}
+        html,body{width:100%;height:100%;overflow:hidden;background:#000;touch-action:none}
+        #app-wrap{position:absolute;top:50%;left:50%;width:100vw;height:100vh;transform:translate(-50%,-50%);background:url('img/menu.png') center/cover no-repeat;display:flex;align-items:center;justify-content:center}
+        
+        /* 90 DEGREE ROTATION (Forces user to rotate phone LEFT) */
+        @media screen and (orientation:portrait){#app-wrap{width:100vh;height:100vw;transform:translate(-50%,-50%) rotate(90deg)}}
+        
+        .menu-container{display:flex;flex-direction:column;align-items:center;gap:12px;background:none;padding:15px;z-index:10}
+        .pixel-text{font-family:'Press Start 2P','Courier New',cursive;color:#FFD700;text-transform:uppercase;text-shadow:3px 3px 0 #002D72,-2px -2px 0 #fff;font-size:1.8rem;margin-bottom:15px;text-align:center;line-height:1.2}
+        
+        .pixel-btn{font-family:'Press Start 2P','Courier New',cursive;background:#002D72;color:#fff;border:3px solid #fff;box-shadow:inset -3px -3px 0 rgba(0,0,0,0.4),4px 4px 0 #000;font-size:10px;padding:12px 20px;cursor:pointer;width:180px;text-align:center;text-transform:uppercase;transition:all 0.1s;outline:none}
+        .pixel-btn:hover{background:#FFD700;color:#002D72}
+        .pixel-btn:active{transform:translate(4px,4px);box-shadow:none;background:#FFD700;color:#002D72}
+        .btn-red{background:#E3000F}
+        .btn-red:hover{background:#FF4c4c;color:#fff}
+        
+        .modal-overlay{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);display:none;align-items:center;justify-content:center;z-index:100}
+        .modal-overlay.show{display:flex}
+        
+        .retro-box{background:#002D72;border:4px solid #fff;box-shadow:inset -4px -4px 0 rgba(0,0,0,0.4),8px 8px 0 #000;padding:20px;width:90%;max-width:320px;display:flex;flex-direction:column;gap:15px}
+        .retro-box h2{font-size:1.2rem;text-shadow:2px 2px 0 #000}
+        
+        #level-list{background:#000;border:2px solid #fff;padding:8px;max-height:150px;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
+        #level-list::-webkit-scrollbar{width:8px}
+        #level-list::-webkit-scrollbar-track{background:#002D72;border-left:1px solid #fff}
+        #level-list::-webkit-scrollbar-thumb{background:#FFD700;border:1px solid #000}
+        
+        .level-item{display:flex;justify-content:space-between;align-items:center;background:#111;padding:8px;border:1px solid #444}
+        .level-name{font-family:'Press Start 2P',cursive;color:#fff;font-size:8px;line-height:1.4;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .level-play-btn{font-family:'Press Start 2P',cursive;background:#228B22;color:#fff;border:2px solid #fff;font-size:8px;padding:6px 10px;cursor:pointer;box-shadow:2px 2px 0 #000;transition:all 0.1s}
+        .level-play-btn:active{transform:translate(2px,2px);box-shadow:none}
+        
+        .btn-row{display:flex;gap:10px;justify-content:center;margin-top:5px}
+        .btn-row .pixel-btn{width:auto;font-size:8px;padding:10px}
     </style>
 </head>
 <body>
 
-    <!-- Wraps entire app and forces horizontal via CSS without asking -->
+    <!-- Wraps entire app and forces horizontal via CSS -->
     <div id="app-wrap">
         
-        <!-- Apple Arcade x Pixel Vibe Menu Panel -->
-        <div class="glass-panel" id="main-menu">
-            <h1>Sonic Dash</h1>
-            <button class="btn" onclick="navTo('game.html')">Play Game</button>
-            <button class="btn" onclick="openLevels()">Levels</button>
-            <button class="btn" onclick="navTo('editor.html')">Level Editor</button>
+        <!-- Pure Pixel UI -->
+        <div class="menu-container" id="main-menu">
+            <h1 class="pixel-text">SONIC DASH</h1>
+            <button class="pixel-btn" onclick="navTo('game.html')">PLAY GAME</button>
+            <button class="pixel-btn" onclick="openLevels()">ZONES</button>
+            <button class="pixel-btn" onclick="navTo('editor.html')">EDITOR</button>
         </div>
 
         <!-- Levels Popup -->
         <div class="modal-overlay" id="levels-modal">
-            <div class="glass-panel modal-content">
-                <h2>Custom Zones</h2>
-                <div id="level-list">
-                    <!-- Populated by JS -->
-                </div>
+            <div class="retro-box modal-content">
+                <h2 class="pixel-text" style="margin-bottom:0;">ZONES</h2>
+                <div id="level-list"></div>
                 <div class="btn-row">
-                    <label class="btn" style="text-align:center; padding: 10px 20px;">
-                        Import JSON
+                    <label class="pixel-btn" style="text-align:center;">
+                        IMPORT
                         <input type="file" accept=".json" style="display:none" onchange="importLevel(event)">
                     </label>
-                    <button class="btn" style="background:rgba(255,0,0,0.4);" onclick="closeLevels()">Back</button>
+                    <button class="pixel-btn btn-red" onclick="closeLevels()">BACK</button>
                 </div>
             </div>
         </div>
 
     </div>
 
+    <!-- Howler.js for robust audio handling as requested -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js"></script>
+
     <script>
-        // Audio Setup
+        // --- HIGH QUALITY RETRO SYNTHESIS (No external files needed for UI) ---
+        // Generates a pure, high-quality sine wave ring/select sound mimicking Sonic
+        function playRetroSound() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if(audioCtx.state === 'suspended') audioCtx.resume();
+                const osc = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                
+                osc.type = 'sine';
+                // Classic fast pitch sweep (Ring sound vibe)
+                osc.frequency.setValueAtTime(1200, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(2200, audioCtx.currentTime + 0.08);
+                
+                gainNode.gain.setValueAtTime(0.4, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+                
+                osc.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.25);
+            } catch(e) {}
+        }
+
+        // --- BACKGROUND MUSIC ENGINE ---
         const bgm = new Audio('sound/sonic.mp3');
         bgm.loop = true;
         bgm.volume = 0;
         
         let bgmStarted = false;
-        let fadingOut = false;
+        let isNavigating = false;
 
-        // Custom Pixel/Arcade Synth Click
-        function playClick() {
-            try {
-                const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                if(ctx.state === 'suspended') ctx.resume();
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.type = 'square';
-                osc.frequency.setValueAtTime(600, ctx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(150, ctx.currentTime + 0.1);
-                gain.gain.setValueAtTime(0.1, ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.start();
-                osc.stop(ctx.currentTime + 0.1);
-            } catch(e) {}
-        }
+        // Persist audio timing across page loads!
+        const savedTime = sessionStorage.getItem('sonic_bgm_time');
+        if (savedTime) bgm.currentTime = parseFloat(savedTime);
 
-        // BGM 1s Fade-In
         function initAudio() {
             if(bgmStarted) return;
             bgmStarted = true;
             bgm.play().then(() => {
                 let vol = 0;
                 let fade = setInterval(() => {
-                    if(fadingOut) { clearInterval(fade); return; }
+                    if(isNavigating) { clearInterval(fade); return; }
                     vol += 0.05;
                     if(vol >= 0.2) { bgm.volume = 0.2; clearInterval(fade); }
                     else bgm.volume = vol;
-                }, 250); // 4 steps over 1 second
+                }, 250);
             }).catch(e => {
-                bgmStarted = false; // Blocked by browser, will try on next interaction
+                bgmStarted = false; 
             });
         }
+
+        // Save current track time so next page plays exactly from where we left off
+        setInterval(() => {
+            if (bgmStarted && !bgm.paused && !isNavigating) {
+                sessionStorage.setItem('sonic_bgm_time', bgm.currentTime);
+            }
+        }, 100);
 
         document.addEventListener('pointerdown', initAudio, { once: true });
         document.addEventListener('click', initAudio, { once: true });
 
-        // BGM 1s Fade-Out & Navigation
+        // --- NAVIGATION WITH AUDIO CONTINUITY ---
         function navTo(url) {
-            if(fadingOut) return;
-            playClick();
-            fadingOut = true;
+            if(isNavigating) return;
+            playRetroSound();
+            isNavigating = true;
             
             // Failsafe timer if audio takes too long
             const failSafe = setTimeout(() => { window.location.href = url; }, 1100);
@@ -103,33 +154,31 @@
                 vol -= 0.05;
                 if(vol <= 0) {
                     bgm.volume = 0;
+                    sessionStorage.setItem('sonic_bgm_time', bgm.currentTime); // Ensure exact cut off time is saved
                     clearInterval(fadeOutTimer);
                     clearTimeout(failSafe);
                     window.location.href = url;
                 } else {
                     bgm.volume = Math.max(0, vol);
                 }
-            }, 250); // 4 steps over 1 second
+            }, 250); // 1 sec fade out
         }
 
-        // --- LEVEL MANAGEMENT (Cookie/LocalStorage integration) ---
+        // --- UI & LEVEL MANAGEMENT ---
         function openLevels() {
-            playClick();
+            playRetroSound();
             document.getElementById('levels-modal').classList.add('show');
             renderLevels();
         }
 
         function closeLevels() {
-            playClick();
+            playRetroSound();
             document.getElementById('levels-modal').classList.remove('show');
         }
 
         function getCustomLevels() {
-            try {
-                return JSON.parse(localStorage.getItem('sonic_custom_levels')) || [];
-            } catch(e) {
-                return[];
-            }
+            try { return JSON.parse(localStorage.getItem('sonic_custom_levels')) ||[]; } 
+            catch(e) { return[]; }
         }
 
         function renderLevels() {
@@ -138,7 +187,7 @@
             const levels = getCustomLevels();
             
             if(levels.length === 0) {
-                list.innerHTML = '<p style="text-align:center; color:#ccc; padding:10px;">No custom zones imported yet.</p>';
+                list.innerHTML = '<p style="text-align:center; color:#ccc; font-family:\'Press Start 2P\'; font-size:8px; line-height:1.5; padding:10px;">NO CUSTOM ZONES IMPORTED.</p>';
                 return;
             }
 
@@ -148,14 +197,12 @@
                 
                 const nameStr = document.createElement('span');
                 nameStr.className = 'level-name';
-                nameStr.textContent = lvl.name || "Unnamed Zone";
+                nameStr.textContent = lvl.name || "UNNAMED ZONE";
 
                 const playBtn = document.createElement('button');
                 playBtn.className = 'level-play-btn';
                 playBtn.textContent = 'PLAY';
                 playBtn.onclick = () => {
-                    playClick();
-                    // Will load the specific level via query param when you build game.html
                     navTo(`game.html?level=${encodeURIComponent(lvl.name)}`);
                 };
 
@@ -166,7 +213,7 @@
         }
 
         function importLevel(e) {
-            playClick();
+            playRetroSound();
             const file = e.target.files[0];
             if(!file) return;
             
@@ -183,11 +230,9 @@
                     
                     localStorage.setItem('sonic_custom_levels', JSON.stringify(levels));
                     renderLevels();
-                    
-                    // Reset input so the same file can be selected again if needed
                     e.target.value = '';
                 } catch(err) {
-                    alert("Invalid JSON format!");
+                    alert("INVALID JSON FORMAT!");
                 }
             };
             reader.readAsText(file);
