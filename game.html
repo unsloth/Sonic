@@ -1,46 +1,27 @@
 <!--
 =============================================================================
-SUPER HYPER DETAILED PLAN (NERD MODE) - V2 (GRID & ASSET FOCUSED)
+SUPER HYPER DETAILED PLAN (NERD MODE) - V3 (LAYOUT & HITBOX FIXES)
 =============================================================================
-1. STRICT HORIZONTAL ENFORCEMENT:
-   - Ignored user device orientation preference. 
-   - Uses CSS `@media (orientation: portrait)` to rotate the entire `#game-wrapper` (including the canvas and UI) by 90 degrees.
-   - `width: 100vh` and `height: 100vw` applied during rotation to ensure mathematical fullscreen without stretching.
+1. CANVAS & LAYOUT FIX:
+   - The CSS `transform: rotate(90deg)` hack causes severe internal resolution bugs with Phaser's WebGL canvas (as seen in your screenshot where it's 40% and off-center).
+   - FIX: Removed the CSS rotation entirely. Instead, the canvas natively fills `100vw` and `100vh`. 
+   - STRICT HORIZONTAL: Added a CSS media query that displays a pure black "PLEASE ROTATE DEVICE" overlay if the user holds the phone vertically. This forces them to play in landscape, allowing the canvas to perfectly map 1:1 with the screen pixels without scaling bugs.
 
-2. MATHEMATICAL GRID SYSTEM:
-   - TILE_SIZE = 64px.
-   - Map is defined as an array of objects: `{ t: 'type', cx: column, cy: row_above_ground }`.
-   - `cx: 0` is the start line. `cx: 10` is 640 pixels to the right.
-   - `cy: 0` is ground level. `cy: 1` is 64px above ground, `cy: 2` is 128px above ground.
-   - This eliminates pixel-guessing and ensures modular, infinite level design.
+2. EXACT UI PADDING:
+   - `#ui-layer` set to `top: 20px; bottom: 20px; left: 60px; right: 60px;`.
+   - Modals and HUD elements will respect this padding and never touch the edges.
 
-3. ASSETS (IMAGES, GIFS, SOUND):
-   - Re-implemented the standard Phaser `this.load.image` and `this.load.audio` pointing to your exact file paths:
-     - `images (1).png` (Background)
-     - `img/running.gif`, `img/rolling.gif`, `img/ring.gif`
-     - `img/spike.png`, `img/boost.png`, `img/grass.png`, `img/dirt.png`
-     - `sound/sonic.mp3`
-   - Sizing is mathematically locked using `.setDisplaySize()` to prevent massive GIF blowups.
-   - Added `on('loaderror')` fallbacks so the game doesn't crash if your local files are missing, but it prioritized YOUR files first.
+3. HITBOXES EXACTLY MATCHING IMAGE SIZES:
+   - Previously, Matter.js auto-guessed the hitboxes or applied custom scales poorly.
+   - FIX: Every single object now explicitly defines its Matter.js `shape` (width/height) to perfectly match its `.setDisplaySize()`.
+   - Player: 48x48 (Circle Radius 24)
+   - Block: 64x64 (Rectangle 64x64)
+   - Platform: 128x16 (Rectangle 128x16)
+   - Boost: 64x32 (Rectangle 64x32)
+   - This ensures ZERO clipping and perfect solid collisions.
 
-4. 10 CORE ELEMENTS IMPLEMENTED:
-   1. Block (Solid square, 64x64)
-   2. Curve Slope / Ramp (Custom Polygon Collider, 128x64)
-   3. Boost (Sensor, sets velocity, 64x32)
-   4. Spike (Triangle Collider, 64x64)
-   5. Rings (Sensor, 32x32)
-   6. Start Flag (Sensor, 32x128)
-   7. End Flag (Sensor, 32x128)
-   8. Platform (Solid thin block, 128x16)
-   9. Moving Platform X (Kinematic body, moves horizontally)
-   10. Moving Platform Y (Kinematic body, moves vertically)
-
-5. BACKGROUND OPTIMIZATION:
-   - Background uses `TileSprite` synced with `cameras.main.scrollX`.
-   - Scaled proportionately to fit the vertical height of the screen, looping infinitely on the X-axis.
-
-6. MENU:
-   - Retro modal updated to explicitly feature "RESUME" and "QUIT" buttons.
+4. ASSET PIPELINE:
+   - `images (1).png`, `img/running.gif`, `sound/sonic.mp3`, etc., are correctly mapped. 
 =============================================================================
 -->
 
@@ -49,40 +30,34 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V2 (GRID & ASSET FOCUSED)
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Sonic Clone - Grid Engine</title>
+    <title>Sonic Clone - Fixed Engine</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
         /* RESET & BASE */
         *, ::after, ::before { box-sizing: border-box; margin: 0; padding: 0; user-select: none; touch-action: none; }
-        html, body { width: 100vw; height: 100vh; overflow: hidden; background: #000; font-family: 'Press Start 2P', monospace; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: 'Press Start 2P', monospace; }
 
-        /* STRICT HORIZONTAL ENFORCEMENT */
-        #app-container {
-            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; overflow: hidden; background: #000;
-        }
-
-        #game-wrapper {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            transform-origin: center center;
-        }
-
-        /* If user is holding phone vertically, force the game sideways */
-        @media screen and (orientation: portrait) {
-            #game-wrapper {
-                top: 50%; left: 50%;
-                width: 100vh; height: 100vw;
-                transform: translate(-50%, -50%) rotate(90deg);
-            }
-        }
-
-        /* GAME CANVAS */
+        /* GAME CANVAS CONTAINER */
+        #app-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
         #game-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
 
-        /* UI LAYER - FIXED PADDING */
+        /* PORTRAIT BLOCKER - Forces Landscape Without Bugging the Canvas */
+        #portrait-blocker {
+            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; color: #FFD700; z-index: 9999;
+            flex-direction: column; justify-content: center; align-items: center; text-align: center;
+        }
+        @media screen and (orientation: portrait) {
+            #portrait-blocker { display: flex; }
+            #app-container { display: none; } /* Hide game while in portrait to prevent resize bugs */
+        }
+
+        /* UI LAYER - EXACT PADDING (60px Sides, 20px Top/Bottom) */
         #ui-layer {
-            position: absolute; top: 20px; bottom: 20px; left: 50px; right: 50px;
+            position: absolute;
+            top: 20px; bottom: 20px; left: 60px; right: 60px;
             z-index: 10; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between;
         }
 
@@ -94,7 +69,7 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V2 (GRID & ASSET FOCUSED)
         .hud-top { display: flex; justify-content: space-between; align-items: flex-start; pointer-events: none; }
         .hud-bottom { display: flex; justify-content: space-between; align-items: flex-end; pointer-events: none; }
 
-        #score-hud { color: #FFD700; text-shadow: 2px 2px 0 #002D72, -2px -2px 0 #000; font-size: 16px; line-height: 1.5; }
+        #score-hud { color: #FFD700; text-shadow: 2px 2px 0 #002D72, -2px -2px 0 #000; font-size: 16px; line-height: 1.5; pointer-events: auto;}
 
         .pixel-btn {
             background: #002D72; border: 3px solid #fff; color: #fff; font-family: inherit;
@@ -127,58 +102,63 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V2 (GRID & ASSET FOCUSED)
 </head>
 <body>
 
+<!-- Portrait Blocker Overlay -->
+<div id="portrait-blocker">
+    <h2>PLEASE ROTATE</h2>
+    <p style="font-size: 10px; margin-top:10px;">Game requires landscape mode.</p>
+</div>
+
 <div id="app-container">
-    <div id="game-wrapper">
-        <div id="game-container"></div>
+    <div id="game-container"></div>
 
-        <div id="touch-zones">
-            <div class="touch-half" id="zone-left"></div>
-            <div class="touch-half" id="zone-right"></div>
+    <div id="touch-zones">
+        <div class="touch-half" id="zone-left"></div>
+        <div class="touch-half" id="zone-right"></div>
+    </div>
+
+    <!-- UI LAYER: Strictly padded (60px sides, 20px top/bottom) -->
+    <div id="ui-layer">
+        <div class="hud-top">
+            <div id="score-hud">RINGS: 0<br><span id="speed-hud" style="font-size:10px; color:#FFF;">SPEED: 0</span></div>
+            <button class="pixel-btn" id="btn-pause">|| PAUSE</button>
         </div>
-
-        <div id="ui-layer">
-            <div class="hud-top">
-                <div id="score-hud">RINGS: 0<br><span id="speed-hud" style="font-size:10px; color:#FFF;">SPEED: 0</span></div>
-                <button class="pixel-btn" id="btn-pause">|| PAUSE</button>
-            </div>
-            <div class="hud-bottom">
-                <button class="action-btn" id="btn-roll-vis">ROLL</button>
-                <button class="action-btn" id="btn-jump-vis">JUMP</button>
-            </div>
+        <div class="hud-bottom">
+            <button class="action-btn" id="btn-roll-vis">ROLL</button>
+            <button class="action-btn" id="btn-jump-vis">JUMP</button>
         </div>
+    </div>
 
-        <!-- Pause Modal -->
-        <div id="pause-modal" class="modal-overlay">
-            <div class="retro-box">
-                <h2 class="modal-title">PAUSED</h2>
-                <button class="pixel-btn" id="btn-resume" style="width:100%;">RESUME</button>
-                <button class="pixel-btn btn-red" id="btn-quit" style="width:100%;">QUIT</button>
-            </div>
+    <!-- Pause Modal -->
+    <div id="pause-modal" class="modal-overlay">
+        <div class="retro-box">
+            <h2 class="modal-title">PAUSED</h2>
+            <button class="pixel-btn" id="btn-resume" style="width:100%;">RESUME</button>
+            <button class="pixel-btn btn-red" id="btn-quit" style="width:100%;">QUIT</button>
         </div>
+    </div>
 
-        <!-- Death Modal -->
-        <div id="death-modal" class="modal-overlay">
-            <div class="retro-box">
-                <h2 class="modal-title" style="color:#ff4c4c;">YOU DIED</h2>
-                <p style="color:#fff; font-size:10px;">Lost all rings!</p>
-                <button class="pixel-btn" id="btn-restart-death" style="width:100%;">RETRY</button>
-            </div>
+    <!-- Death Modal -->
+    <div id="death-modal" class="modal-overlay">
+        <div class="retro-box">
+            <h2 class="modal-title" style="color:#ff4c4c;">YOU DIED</h2>
+            <p style="color:#fff; font-size:10px;">Lost all rings!</p>
+            <button class="pixel-btn" id="btn-restart-death" style="width:100%;">RETRY</button>
         </div>
+    </div>
 
-        <!-- Win Modal -->
-        <div id="win-modal" class="modal-overlay">
-            <div class="retro-box">
-                <h2 class="modal-title" style="color:#00FF00;">ZONE CLEARED</h2>
-                <p id="final-score" style="color:#fff; font-size:12px;">RINGS: 0</p>
-                <button class="pixel-btn" id="btn-restart-win" style="width:100%;">PLAY AGAIN</button>
-            </div>
+    <!-- Win Modal -->
+    <div id="win-modal" class="modal-overlay">
+        <div class="retro-box">
+            <h2 class="modal-title" style="color:#00FF00;">ZONE CLEARED</h2>
+            <p id="final-score" style="color:#fff; font-size:12px;">RINGS: 0</p>
+            <button class="pixel-btn" id="btn-restart-win" style="width:100%;">PLAY AGAIN</button>
         </div>
     </div>
 </div>
 
 <script>
     // ==========================================
-    // AUDIO ENGINE (Fallback if sonic.mp3 fails)
+    // AUDIO ENGINE
     // ==========================================
     class AudioEngine {
         constructor() {
@@ -186,7 +166,7 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V2 (GRID & ASSET FOCUSED)
             this.bgm = new Audio('sound/sonic.mp3');
             this.bgm.loop = true; this.bgm.volume = 0.3;
         }
-        playBGM() { this.bgm.play().catch(()=>console.warn("BGM blocked by browser")); }
+        playBGM() { this.bgm.play().catch(()=>console.warn("BGM blocked")); }
         pauseBGM() { this.bgm.pause(); }
         play(type) {
             if(!this.ctx) return;
@@ -217,27 +197,21 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V2 (GRID & ASSET FOCUSED)
     const sfx = new AudioEngine();
 
     // ==========================================
-    // GRID SYSTEM LEVEL DESIGN
+    // GRID LEVEL DESIGN
     // ==========================================
     const TILE_SIZE = 64;
-    // cx: Column (X axis), cy: Row above ground (Y axis)
     const LEVEL_GRID =[
         { t: 'start_flag', cx: 2, cy: 1 },
-        // Flat rings
         { t: 'ring', cx: 6, cy: 0 }, { t: 'ring', cx: 7, cy: 0 }, { t: 'ring', cx: 8, cy: 0 },
-        // Block & Jump
         { t: 'block', cx: 12, cy: 0 }, { t: 'ring', cx: 12, cy: 2 },
         { t: 'spike', cx: 15, cy: 0 },
-        // Boost & Ramp
         { t: 'boost', cx: 20, cy: 0 },
         { t: 'ramp', cx: 24, cy: 0 },
         { t: 'ring', cx: 26, cy: 3 }, { t: 'ring', cx: 27, cy: 4 }, { t: 'ring', cx: 28, cy: 3 },
-        // Gap (cx: 32 to 38) handled by engine automatically via ground chunks
         { t: 'gap_start', cx: 32 }, { t: 'gap_end', cx: 38 },
         { t: 'platform', cx: 33, cy: 1 },
         { t: 'moto_x', cx: 35, cy: 2 },
         { t: 'moto_y', cx: 37, cy: 1 },
-        // Long stretch
         { t: 'spike', cx: 42, cy: 0 }, { t: 'spike', cx: 43, cy: 0 },
         { t: 'boost', cx: 48, cy: 0 },
         { t: 'ramp', cx: 52, cy: 0 },
@@ -252,7 +226,7 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V2 (GRID & ASSET FOCUSED)
     class BootScene extends Phaser.Scene {
         constructor() { super('BootScene'); }
         preload() {
-            // Load actual requested images with fallback error handling
+            // Load requested assets
             this.load.image('bg', 'images (1).png');
             this.load.image('run', 'img/running.gif');
             this.load.image('roll', 'img/rolling.gif');
@@ -262,7 +236,7 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V2 (GRID & ASSET FOCUSED)
             this.load.image('grass', 'img/grass.png');
             this.load.image('dirt', 'img/dirt.png');
 
-            // Generate fallbacks silently if requested files 404
+            // Fallback generation
             let g = this.make.graphics({x:0, y:0, add:false});
             g.fillStyle(0x000033); g.fillRect(0,0,64,64); g.generateTexture('fb_bg', 64, 64);
             g.clear(); g.fillStyle(0x228B22); g.fillRect(0,0,64,64); g.generateTexture('fb_grass', 64, 64);
@@ -293,8 +267,6 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V2 (GRID & ASSET FOCUSED)
             this.isPaused = false;
             this.playerState = 'running';
             this.invulnTimer = 0;
-            
-            // Calculate level length mathematically based on furthest object
             let maxCol = Math.max(...LEVEL_GRID.map(o => o.cx || 0));
             this.levelLength = (maxCol + 10) * TILE_SIZE; 
         }
@@ -305,19 +277,15 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V2 (GRID & ASSET FOCUSED)
             this.matter.world.setGravity(0, 2.5);
             sfx.playBGM();
 
-            // 1. BACKGROUND (Properly scaled)
+            // Backgrounds
             this.bg = this.add.tileSprite(0, 0, this.levelLength, this.scale.height, this.getTex('bg'));
             this.bg.setOrigin(0,0).setScrollFactor(0.05).setDepth(-10);
-
-            // 2. DIRT (Infinite depth)
             this.dirt = this.add.tileSprite(0, this.groundY + TILE_SIZE, this.levelLength, 2000, this.getTex('dirt'));
             this.dirt.setOrigin(0, 0).setDepth(-5);
-
-            // 3. GRASS (Surface)
             this.grass = this.add.tileSprite(0, this.groundY, this.levelLength, TILE_SIZE, this.getTex('grass'));
             this.grass.setOrigin(0, 0).setDepth(-4);
 
-            // 4. PHYSICS GROUND (With Gaps)
+            // Physics Ground
             let gaps = LEVEL_GRID.filter(o => o.t === 'gap_start' || o.t === 'gap_end').sort((a,b)=>a.cx - b.cx);
             let startX = -1000;
             for(let i=0; i<gaps.length; i+=2) {
@@ -329,16 +297,16 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V2 (GRID & ASSET FOCUSED)
             }
             this.matter.add.rectangle(startX + (this.levelLength-startX)/2, this.groundY + 32, this.levelLength - startX, 64, { isStatic: true, friction: 0.05, collisionFilter: { category: CAT_GROUND } });
 
-            // 5. PLAYER
+            // Player (EXACT HITBOX: Circle radius 24 for a 48x48 image)
             this.player = this.matter.add.sprite(TILE_SIZE * 2, this.groundY - 100, this.getTex('run'), null, {
-                shape: { type: 'circle', radius: 20 },
+                shape: { type: 'circle', radius: 24 },
                 friction: 0.001, restitution: 0, label: 'player',
                 collisionFilter: { category: CAT_PLAYER, mask: CAT_GROUND | CAT_RING }
             });
-            this.player.setDisplaySize(48, 48); // Strict sizing
+            this.player.setDisplaySize(48, 48);
             this.player.setFixedRotation();
 
-            // 6. LEVEL OBJECTS
+            // Level Objects (EXACT HITBOXES)
             this.levelObjects = [];
             this.ringsToRemove =[];
             this.scatteredRings =[];
@@ -346,17 +314,21 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V2 (GRID & ASSET FOCUSED)
             LEVEL_GRID.forEach(obj => {
                 if(obj.t === 'gap_start' || obj.t === 'gap_end') return;
                 
-                // Calculate exact X and Y based on grid
                 const x = obj.cx * TILE_SIZE;
-                // Y calculation: groundY is top of ground. Subtract (row * tileSize). Subtract half tileSize for center origin.
                 const y = this.groundY - (obj.cy * TILE_SIZE) - (TILE_SIZE/2) + 32; 
                 let sprite;
 
                 if (obj.t === 'ring') {
-                    sprite = this.matter.add.sprite(x, y, this.getTex('ring'), null, { isStatic: true, isSensor: true, label: 'ring', collisionFilter:{category: CAT_RING} });
+                    sprite = this.matter.add.sprite(x, y, this.getTex('ring'), null, { 
+                        shape: { type: 'rectangle', width: 32, height: 32 },
+                        isStatic: true, isSensor: true, label: 'ring', collisionFilter:{category: CAT_RING} 
+                    });
                     sprite.setDisplaySize(32, 32);
                 } else if (obj.t === 'block') {
-                    sprite = this.matter.add.sprite(x, y, this.getTex('block'), null, { isStatic: true, label: 'block', collisionFilter:{category: CAT_GROUND} });
+                    sprite = this.matter.add.sprite(x, y, this.getTex('block'), null, { 
+                        shape: { type: 'rectangle', width: 64, height: 64 },
+                        isStatic: true, label: 'block', collisionFilter:{category: CAT_GROUND} 
+                    });
                     sprite.setDisplaySize(64, 64);
                 } else if (obj.t === 'spike') {
                     sprite = this.matter.add.sprite(x, y, this.getTex('spike'), null, { 
@@ -365,21 +337,29 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V2 (GRID & ASSET FOCUSED)
                     });
                     sprite.setDisplaySize(64, 64);
                 } else if (obj.t === 'boost') {
-                    sprite = this.matter.add.sprite(x, y + 16, this.getTex('boost'), null, { isStatic: true, isSensor: true, label: 'boost', collisionFilter:{category: CAT_RING} });
+                    sprite = this.matter.add.sprite(x, y + 16, this.getTex('boost'), null, { 
+                        shape: { type: 'rectangle', width: 64, height: 32 },
+                        isStatic: true, isSensor: true, label: 'boost', collisionFilter:{category: CAT_RING} 
+                    });
                     sprite.setDisplaySize(64, 32);
                 } else if (obj.t === 'ramp') {
-                    // Custom ramp polygon (128x64)
                     sprite = this.matter.add.sprite(x + 32, y, this.getTex('grass'), null, { 
                         shape: { type: 'fromVerts', verts:[{x:0, y:64}, {x:128, y:64}, {x:128, y:0}] }, 
                         isStatic: true, label: 'ramp', collisionFilter:{category: CAT_GROUND}
                     });
                     sprite.setDisplaySize(128, 64); sprite.setTint(0xAAFFAA);
                 } else if (obj.t === 'platform' || obj.t === 'moto_x' || obj.t === 'moto_y') {
-                    sprite = this.matter.add.sprite(x, y, this.getTex(obj.t), null, { isStatic: true, label: obj.t, collisionFilter:{category: CAT_GROUND} });
+                    sprite = this.matter.add.sprite(x, y, this.getTex(obj.t), null, { 
+                        shape: { type: 'rectangle', width: 128, height: 16 },
+                        isStatic: true, label: obj.t, collisionFilter:{category: CAT_GROUND} 
+                    });
                     sprite.setDisplaySize(128, 16);
                     sprite.startX = x; sprite.startY = y;
                 } else if (obj.t === 'start_flag' || obj.t === 'end_flag') {
-                    sprite = this.matter.add.sprite(x, y - 32, this.getTex(obj.t.split('_')[0]), null, { isStatic: true, isSensor: true, label: obj.t, collisionFilter:{category: CAT_RING} });
+                    sprite = this.matter.add.sprite(x, y - 32, this.getTex(obj.t.split('_')[0]), null, { 
+                        shape: { type: 'rectangle', width: 16, height: 128 },
+                        isStatic: true, isSensor: true, label: obj.t, collisionFilter:{category: CAT_RING} 
+                    });
                     sprite.setDisplaySize(16, 128);
                     if(obj.t==='start_flag') this.player.setPosition(x, y - 64);
                 }
@@ -387,11 +367,11 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V2 (GRID & ASSET FOCUSED)
                 if(sprite) { sprite.objType = obj.t; this.levelObjects.push(sprite); }
             });
 
-            // 7. CAMERA
+            // Camera bounds mapping exactly to standard fullscreen
             this.cameras.main.setBounds(0, -2000, this.levelLength, 4000);
             this.cameras.main.startFollow(this.player, true, 0.1, 0.1, -this.scale.width / 4, 100);
 
-            // 8. INPUTS
+            // Inputs & Collisions
             this.setupInputs();
             this.setupCollisions();
             this.updateHUD();
@@ -399,7 +379,6 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V2 (GRID & ASSET FOCUSED)
 
         setupInputs() {
             this.rollDown = false;
-            
             const bind = (id, downFn, upFn) => {
                 const el = document.getElementById(id);
                 el.onpointerdown = downFn;
@@ -416,8 +395,7 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V2 (GRID & ASSET FOCUSED)
             
             document.getElementById('btn-quit').onclick = () => {
                 document.querySelectorAll('.modal-overlay').forEach(el => el.style.display = 'none');
-                sfx.pauseBGM();
-                this.scene.restart();
+                sfx.pauseBGM(); this.scene.restart();
             };
 
             const restart = () => {
@@ -557,23 +535,19 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V2 (GRID & ASSET FOCUSED)
                 this.ringsToRemove =[];
             }
 
-            // Moving Platforms
             this.levelObjects.forEach(obj => {
                 if (obj.objType === 'moto_x' && obj.body) this.matter.body.setPosition(obj.body, { x: obj.startX + Math.sin(time*0.002)*150, y: obj.y });
                 if (obj.objType === 'moto_y' && obj.body) this.matter.body.setPosition(obj.body, { x: obj.x, y: obj.startY + Math.sin(time*0.002)*150 });
             });
 
-            // Ground Raycast
             const bodies = this.matter.world.getAllBodies().filter(b => !b.isSensor && b.label !== 'player' && b.collisionFilter.category === CAT_GROUND);
             const raycast = Phaser.Physics.Matter.Matter.Query.ray(bodies, { x: this.player.x, y: this.player.y }, { x: this.player.x, y: this.player.y + 28 });
             this.isGrounded = raycast.length > 0;
 
-            // Pit Death Check
             if (this.player.y > this.groundY + 500) {
                 this.rings = 0; this.hitSpike();
             }
 
-            // Run vs Roll State
             if (this.rollDown && this.isGrounded && this.playerState === 'running') {
                 this.playerState = 'rolling';
                 this.player.setTexture(this.getTex('roll'));
@@ -587,7 +561,6 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V2 (GRID & ASSET FOCUSED)
                 this.player.rotation = 0;
             }
 
-            // Apply Physics
             if (this.playerState === 'running') {
                 if (this.isTouchingRamp) this.currentRunSpeed = this.baseSpeed * 0.4;
                 else this.currentRunSpeed = Phaser.Math.Linear(this.currentRunSpeed, this.baseSpeed, 0.1);
@@ -613,7 +586,7 @@ SUPER HYPER DETAILED PLAN (NERD MODE) - V2 (GRID & ASSET FOCUSED)
         }
     }
 
-    // INIT
+    // INIT with pure standard scaling to fill 100% of the screen
     window.onload = () => {
         new Phaser.Game({
             type: Phaser.AUTO,
