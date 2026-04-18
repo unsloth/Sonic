@@ -15,39 +15,33 @@
         *,::after,::before { box-sizing: border-box; margin: 0; padding: 0; user-select: none; touch-action: none; }
         html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: 'Press Start 2P', 'Courier New', cursive; }
         
-        /* Master wrapper that forces landscape dimensions and rotation */
-        #app-wrap {
-            position: absolute;
-            top: 50%; left: 50%;
-            width: 100vw; height: 100vh;
-            transform: translate(-50%, -50%);
-            overflow: hidden;
-        }
+        /* Master wrapper to isolate orientation logic from Phaser */
+        #app-wrap { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #000; }
+        
+        /* The game area enforces landscape dimensions */
+        #game-area { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
 
-        /* If device is portrait, rotate the entire wrapper to force landscape */
+        /* Rotate ONLY the game area if the device is portrait */
         @media screen and (orientation: portrait) { 
-            #app-wrap {
+            #game-area {
                 width: 100vh; 
                 height: 100vw;
-                transform: translate(-50%, -50%) rotate(90deg);
+                transform: rotate(90deg);
+                transform-origin: center center;
             }
         }
 
         #game-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
 
-        /* HUD Elements */
-        .hud-text { position: absolute; color: #FFD700; text-shadow: 2px 2px 0 #002D72, -1px -1px 0 #fff; font-size: 14px; pointer-events: none; }
-        #score-hud { top: 20px; left: 20px; }
+        /* HUD & Controls - STRICT PADDING LOGIC (50px L/R, 20px T/B) */
+        .hud-text { position: absolute; color: #FFD700; text-shadow: 2px 2px 0 #002D72, -2px -2px 0 #000; font-size: 16px; pointer-events: none; z-index: 50; }
+        #score-hud { top: 20px; left: 50px; }
         
-        /* Pause Button - Exactly 55px right padding constraint, at bottom */
-        #pause-ui {
-            position: absolute;
-            bottom: 30px;
-            right: 55px; 
-            pointer-events: auto;
-        }
+        #pause-ui { position: absolute; bottom: 20px; right: 50px; pointer-events: auto; z-index: 50; }
+        #mobile-controls { position: absolute; bottom: 20px; left: 50px; display: flex; gap: 20px; pointer-events: auto; z-index: 50; }
 
+        /* Buttons */
         .pixel-btn {
             background: #002D72; border: 3px solid #fff; color: #fff; font-family: 'Press Start 2P', cursive;
             box-shadow: inset -3px -3px 0 rgba(0,0,0,0.4), 4px 4px 0 #000; font-size: 10px; padding: 12px 15px; cursor: pointer;
@@ -55,52 +49,76 @@
         }
         .pixel-btn:active { transform: translate(4px, 4px); box-shadow: none; background: #FFD700; color: #002D72; }
         .btn-red { background: #E3000F; }
+        .btn-green { background: #228B22; }
 
-        /* Mobile Controls */
-        #mobile-controls { position: absolute; bottom: 30px; left: 20px; display: flex; gap: 20px; pointer-events: auto; }
         .control-btn { 
             width: 70px; height: 70px; border-radius: 50%; background: rgba(0, 45, 114, 0.6); 
-            border: 3px solid rgba(255,255,255,0.6); color: rgba(255,255,255,0.8);
+            border: 3px solid rgba(255,255,255,0.8); color: #fff; text-shadow: 1px 1px 0 #000;
             display: flex; align-items: center; justify-content: center; font-size: 10px; 
-            box-shadow: 0 5px 0 rgba(0,0,0,0.3); font-family: inherit; cursor: pointer;
+            box-shadow: 0 5px 0 rgba(0,0,0,0.4); font-family: inherit; cursor: pointer;
         }
-        .control-btn:active { transform: translateY(5px); box-shadow: none; background: rgba(255, 215, 0, 0.8); color: #000; }
+        .control-btn:active { transform: translateY(5px); box-shadow: none; background: rgba(255, 215, 0, 0.8); color: #000; text-shadow: none; }
 
-        /* Pause Menu Modal */
-        #pause-menu {
+        /* Overlays (Pause, Dead, Win) */
+        .overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center;
+            background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center;
             pointer-events: auto; z-index: 100;
         }
         .retro-box {
             background: #002D72; border: 4px solid #fff; box-shadow: inset -4px -4px 0 rgba(0,0,0,0.4), 8px 8px 0 #000;
             padding: 25px; display: flex; flex-direction: column; gap: 20px; align-items: center; text-align: center;
-            min-width: 250px;
+            min-width: 280px;
         }
+        .overlay h2 { color: #FFD700; text-shadow: 3px 3px 0 #000; font-size: 18px; margin-bottom: 5px; line-height: 1.4; }
+        .overlay p { color: #fff; font-size: 12px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
     <div id="app-wrap">
-        <div id="game-container"></div>
-        
-        <div id="ui-layer">
-            <div id="score-hud" class="hud-text">RINGS: 0</div>
+        <div id="game-area">
+            <div id="game-container"></div>
             
-            <div id="pause-ui">
-                <button class="pixel-btn" onclick="togglePause()">|| PAUSE</button>
-            </div>
+            <div id="ui-layer">
+                <div id="score-hud" class="hud-text">RINGS: 0</div>
+                
+                <div id="pause-ui">
+                    <button class="pixel-btn" onclick="togglePause()">|| PAUSE</button>
+                </div>
 
-            <div id="mobile-controls">
-                <button class="control-btn" id="btn-roll">ROLL</button>
-                <button class="control-btn" id="btn-jump">JUMP</button>
-            </div>
+                <div id="mobile-controls">
+                    <button class="control-btn" id="btn-roll">ROLL</button>
+                    <button class="control-btn" id="btn-jump">JUMP</button>
+                </div>
 
-            <div id="pause-menu">
-                <div class="retro-box">
-                    <h2 style="color:#FFD700; text-shadow:2px 2px 0 #000; font-size:16px; margin-bottom:10px;">PAUSED</h2>
-                    <button class="pixel-btn" onclick="togglePause()" style="width:100%;">RESUME</button>
-                    <button class="pixel-btn btn-red" onclick="navToMenu()" style="width:100%;">EXIT ZONE</button>
+                <!-- Pause Menu -->
+                <div id="pause-menu" class="overlay">
+                    <div class="retro-box">
+                        <h2>PAUSED</h2>
+                        <button class="pixel-btn btn-green" onclick="togglePause()" style="width:100%;">RESUME</button>
+                        <button class="pixel-btn btn-red" onclick="navToMenu()" style="width:100%;">EXIT ZONE</button>
+                    </div>
+                </div>
+
+                <!-- Death Menu -->
+                <div id="dead-menu" class="overlay">
+                    <div class="retro-box">
+                        <h2 style="color:#E3000F;">ZONE FAILED</h2>
+                        <p>You lost all your rings!</p>
+                        <button class="pixel-btn btn-green" onclick="restartLevel()" style="width:100%;">RETRY</button>
+                        <button class="pixel-btn btn-red" onclick="navToMenu()" style="width:100%;">EXIT ZONE</button>
+                    </div>
+                </div>
+
+                <!-- Win Menu -->
+                <div id="win-menu" class="overlay">
+                    <div class="retro-box">
+                        <h2>ZONE CLEARED!</h2>
+                        <p id="final-score">RINGS: 0</p>
+                        <button class="pixel-btn btn-green" onclick="restartLevel()" style="width:100%;">REPLAY</button>
+                        <button class="pixel-btn btn-red" onclick="navToMenu()" style="width:100%;">MENU</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -109,8 +127,7 @@
     <script>
         // --- AUDIO ENGINE ---
         const bgm = new Audio('sound/sonic.mp3');
-        bgm.loop = true;
-        bgm.volume = 0.2;
+        bgm.loop = true; bgm.volume = 0.2;
         
         const savedTime = sessionStorage.getItem('sonic_bgm_time');
         if (savedTime) bgm.currentTime = parseFloat(savedTime);
@@ -120,17 +137,13 @@
             if(!bgmPlaying) { bgm.play().catch(e=>e); bgmPlaying = true; }
         }
         document.addEventListener('pointerdown', playBGM, { once: true });
-
-        setInterval(() => {
-            if (bgmPlaying && !bgm.paused) sessionStorage.setItem('sonic_bgm_time', bgm.currentTime);
-        }, 100);
+        setInterval(() => { if (bgmPlaying && !bgm.paused) sessionStorage.setItem('sonic_bgm_time', bgm.currentTime); }, 100);
 
         function playRetroSound(type) {
             try {
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
                 if(ctx.state === 'suspended') ctx.resume();
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
+                const osc = ctx.createOscillator(); const gain = ctx.createGain();
                 osc.connect(gain); gain.connect(ctx.destination);
                 
                 if (type === 'ring') {
@@ -148,6 +161,12 @@
                     osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.4);
                     gain.gain.setValueAtTime(0.2, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
                     osc.start(); osc.stop(ctx.currentTime + 0.4);
+                } else if (type === 'hurt') {
+                    // Ring scatter / damage sound
+                    osc.type = 'triangle'; osc.frequency.setValueAtTime(100, ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(20, ctx.currentTime + 0.4);
+                    gain.gain.setValueAtTime(0.4, ctx.currentTime); gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+                    osc.start(); osc.stop(ctx.currentTime + 0.4);
                 }
             } catch(e) {}
         }
@@ -158,23 +177,35 @@
             setTimeout(() => { window.location.href = 'menu.html'; }, 300);
         }
 
-        // --- GAME DATA ---
+        function restartLevel() {
+            playRetroSound('jump');
+            document.getElementById('dead-menu').style.display = 'none';
+            document.getElementById('win-menu').style.display = 'none';
+            isPaused = false;
+            gameInstance.scene.getScene('PlayScene').scene.restart();
+        }
+
+        // --- EXTENDED LONG TRIAL LEVEL ---
         const TRIAL_LEVEL = {
             name: "Mega Trial Zone", speed: 1.0,
             objects:[
-                { t: 'start_flag', x: 100, y: -32 },
-                { t: 'coin', x: 300, y: -32 }, { t: 'coin', x: 350, y: -32 }, { t: 'coin', x: 400, y: -32 },
-                { t: 'spike', x: 600, y: -32 },
-                { t: 'jump_boost', x: 800, y: -32 },
-                { t: 'coin', x: 800, y: -200 },
-                { t: 'ramp', x: 1100, y: -64 },
-                { t: 'coin', x: 1200, y: -150 }, { t: 'coin', x: 1300, y: -250 },
-                { t: 'platform', x: 1500, y: -100 },
-                { t: 'moto_x', x: 1800, y: -100 },
-                { t: 'moto_y', x: 2100, y: -100 },
-                { t: 'stop_point', x: 2400, y: -32 },
-                { t: 'ramp', x: 2700, y: -64 },
-                { t: 'end_flag', x: 3200, y: -32 }
+                { t: 'start_flag', x: 200, y: -32 },
+                { t: 'coin', x: 400, y: -32 }, { t: 'coin', x: 440, y: -32 }, { t: 'coin', x: 480, y: -32 },
+                { t: 'spike', x: 800, y: -32 },
+                { t: 'coin', x: 1000, y: -90 }, { t: 'coin', x: 1050, y: -120 }, { t: 'coin', x: 1100, y: -90 },
+                { t: 'jump_boost', x: 1050, y: -32 }, // Shoot up
+                { t: 'platform', x: 1300, y: -150 }, { t: 'coin', x: 1300, y: -180 },
+                { t: 'platform', x: 1500, y: -150 },
+                { t: 'ramp', x: 1800, y: -64 }, // Roll down curve
+                { t: 'coin', x: 1950, y: -150 }, { t: 'coin', x: 2000, y: -200 },
+                { t: 'moto_x', x: 2300, y: -100 },
+                { t: 'moto_y', x: 2700, y: -100 }, { t: 'coin', x: 2700, y: -150 },
+                { t: 'spike', x: 3000, y: -32 }, { t: 'spike', x: 3040, y: -32 },
+                { t: 'stop_point', x: 3400, y: -32 },
+                { t: 'jump_boost', x: 3700, y: -32 },
+                { t: 'coin', x: 3800, y: -200 }, { t: 'coin', x: 3850, y: -200 }, { t: 'coin', x: 3900, y: -200 },
+                { t: 'platform', x: 4100, y: -150 }, { t: 'ramp', x: 4300, y: -64 },
+                { t: 'end_flag', x: 4800, y: -32 }
             ]
         };
 
@@ -185,7 +216,7 @@
             constructor() { super('BootScene'); }
             
             preload() {
-                // Load user images (Will load 1st frame of gifs automatically in Phaser WebGL)
+                // User images
                 this.load.image('bg', 'img/menu2.png');
                 this.load.image('grass', 'img/grass.png');
                 this.load.image('dirt', 'img/dirt.png');
@@ -199,22 +230,15 @@
                 let g = this.make.graphics({ x:0, y:0, add:false });
                 g.fillStyle(0xFFD700); g.fillCircle(16,16,12); g.fillStyle(0x000); g.fillCircle(16,16,8);
                 g.generateTexture('fb_ring', 32, 32);
-                g.clear(); g.fillStyle(0x8B4513); g.fillRect(0,0,32,32); g.fillStyle(0x228B22); g.fillRect(0,0,32,8);
-                g.generateTexture('fb_grass', 32, 32);
-                g.clear(); g.fillStyle(0xAAAAAA); g.fillTriangle(16,0, 32,32, 0,32);
-                g.generateTexture('fb_spike', 32, 32);
-                g.clear(); g.fillStyle(0xE3000F); g.fillRect(0,16,32,16); g.fillStyle(0xFFD700); g.fillRect(4,8,24,8);
-                g.generateTexture('fb_boost', 32, 32);
-                g.clear(); g.fillStyle(0x0044CC); g.fillCircle(16,16,14); g.fillStyle(0xFFFFFF); g.fillCircle(22,12,4);
-                g.generateTexture('fb_run', 32, 32);
-                g.clear(); g.fillStyle(0x0044CC); g.fillCircle(16,16,12); g.lineStyle(4, 0x66CCFF); g.strokeCircle(16,16,10);
-                g.generateTexture('fb_roll', 32, 32);
-                g.clear(); g.fillStyle(0xA0522D); g.fillRect(0,0,64,16);
-                g.generateTexture('fb_platform', 64, 16);
-                g.clear(); g.fillStyle(0xFF8C00); g.fillRect(0,0,64,16);
-                g.generateTexture('fb_moto_x', 64, 16);
-                g.clear(); g.fillStyle(0xFF4500); g.fillRect(0,0,64,16);
-                g.generateTexture('fb_moto_y', 64, 16);
+                g.clear(); g.fillStyle(0x228B22); g.fillRect(0,0,32,32); g.generateTexture('fb_grass', 32, 32);
+                g.clear(); g.fillStyle(0x8B4513); g.fillRect(0,0,32,32); g.generateTexture('fb_dirt', 32, 32);
+                g.clear(); g.fillStyle(0xAAAAAA); g.fillTriangle(16,0, 32,32, 0,32); g.generateTexture('fb_spike', 32, 32);
+                g.clear(); g.fillStyle(0xE3000F); g.fillRect(0,16,32,16); g.fillStyle(0xFFD700); g.fillRect(4,8,24,8); g.generateTexture('fb_boost', 32, 32);
+                g.clear(); g.fillStyle(0x0044CC); g.fillCircle(16,16,14); g.fillStyle(0xFFFFFF); g.fillCircle(22,12,4); g.generateTexture('fb_run', 32, 32);
+                g.clear(); g.fillStyle(0x0044CC); g.fillCircle(16,16,12); g.lineStyle(4, 0x66CCFF); g.strokeCircle(16,16,10); g.generateTexture('fb_roll', 32, 32);
+                g.clear(); g.fillStyle(0xA0522D); g.fillRect(0,0,64,16); g.generateTexture('fb_platform', 64, 16);
+                g.clear(); g.fillStyle(0xFF8C00); g.fillRect(0,0,64,16); g.generateTexture('fb_moto_x', 64, 16);
+                g.clear(); g.fillStyle(0xFF4500); g.fillRect(0,0,64,16); g.generateTexture('fb_moto_y', 64, 16);
             }
 
             create() {
@@ -241,21 +265,27 @@
                 this.baseSpeed = 10 * (this.levelData.speed || 1);
                 this.currentRunSpeed = this.baseSpeed;
                 this.rings = 0;
+                document.getElementById('score-hud').innerText = `RINGS: 0`;
             }
 
             create() {
                 this.matter.world.setGravity(0, 2); 
                 
-                // Fix Background Scaling completely
+                // Background
                 this.bg = this.add.tileSprite(0, 0, 5000, 2000, this.textures.exists('bg') ? 'bg' : 'fb_grass');
                 this.bg.setOrigin(0,0).setScrollFactor(0.1).setDepth(-10);
-                // Force size display to act like a true backdrop if image is massive
                 this.bg.tileScaleX = 0.5; this.bg.tileScaleY = 0.5;
 
-                // Infinite Ground Setup - Properly sized
-                this.groundBody = this.matter.add.rectangle(50000, this.groundY + 32, 100000, 64, { isStatic: true, friction: 0.1 });
+                // Infinite Ground Layer Setup
+                this.groundBody = this.matter.add.rectangle(50000, this.groundY + 32, 100000, 64, { isStatic: true, friction: 0.1, label: 'ground' });
+                
+                // Grass Tile (Top layer of ground)
                 this.groundVisual = this.add.tileSprite(0, this.groundY + 16, 100000, 32, this.textures.exists('grass') ? 'grass' : 'fb_grass');
                 this.groundVisual.setOrigin(0, 0.5);
+
+                // Dirt Tile (Deep layer below grass)
+                this.dirtVisual = this.add.tileSprite(0, this.groundY + 32, 100000, 2000, this.textures.exists('dirt') ? 'dirt' : 'fb_dirt');
+                this.dirtVisual.setOrigin(0, 0);
 
                 this.levelObjects =[];
                 this.ringsToRemove =[];
@@ -265,7 +295,6 @@
                 this.setupControls();
                 this.setupCollisions();
 
-                // Camera Tracking with natural delay
                 this.cameras.main.startFollow(this.player, true, 0.08, 0.08, -this.scale.width / 4, 0);
             }
 
@@ -273,13 +302,12 @@
                 this.playerState = 'running';
                 this.isTouchingRamp = false;
                 this.isGrounded = false;
+                this.isInvulnerable = false;
 
-                // Create physics body 
-                this.player = this.matter.add.sprite(100, this.groundY - 60, this.textures.exists('run') ? 'run' : 'fb_run', null, {
+                this.player = this.matter.add.sprite(this.levelObjects.startX || 100, this.groundY - 60, this.textures.exists('run') ? 'run' : 'fb_run', null, {
                     shape: { type: 'circle', radius: 16 },
                     friction: 0.005, restitution: 0, label: 'player'
                 });
-                // Fix massive image sizes uploaded by user
                 this.player.setDisplaySize(40, 40);
                 this.player.setFixedRotation();
             }
@@ -293,7 +321,7 @@
                         case 'coin':
                             tex = this.textures.exists('ring') ? 'ring' : 'fb_ring';
                             sprite = this.matter.add.sprite(obj.x, y, tex, null, { isStatic: true, isSensor: true, label: 'ring' });
-                            sprite.setDisplaySize(24, 24); // Force strict size
+                            sprite.setDisplaySize(24, 24);
                             break;
                         case 'spike':
                             tex = this.textures.exists('spike') ? 'spike' : 'fb_spike';
@@ -309,14 +337,13 @@
                             sprite.setDisplaySize(32, 32);
                             break;
                         case 'ramp':
-                            // Polygon representation of curve
                             const rampVerts =[{x:0, y:64}, {x:128, y:64}, {x:128, y:0}];
-                            sprite = this.matter.add.sprite(obj.x + 64, y, 'fb_grass', null, { 
+                            sprite = this.matter.add.sprite(obj.x + 64, y, this.textures.exists('grass') ? 'grass' : 'fb_grass', null, { 
                                 shape: { type: 'fromVerts', verts: rampVerts }, 
                                 isStatic: true, label: 'ramp' 
                             });
                             sprite.setDisplaySize(128, 64);
-                            sprite.setTint(0x88FF88); 
+                            sprite.setTint(0x99FF99); // slight visual diff
                             break;
                         case 'platform':
                             sprite = this.matter.add.sprite(obj.x, y, 'fb_platform', null, { isStatic: true, label: 'platform' });
@@ -330,19 +357,16 @@
                             break;
                         case 'stop_point':
                             sprite = this.matter.add.sprite(obj.x, y, 'fb_spike', null, { isStatic: true, isSensor: true, label: 'stop_point' });
-                            sprite.setDisplaySize(32, 32);
-                            sprite.setTint(0xFF0000);
+                            sprite.setDisplaySize(32, 32); sprite.setTint(0xFF0000);
                             break;
                         case 'start_flag':
                             sprite = this.matter.add.sprite(obj.x, y, 'fb_platform', null, { isStatic: true, isSensor: true });
-                            sprite.setDisplaySize(16, 64); // Thin pole
-                            sprite.setTint(0x00FF00);
-                            this.player.setPosition(obj.x, y - 40); // Move player slightly above
+                            sprite.setDisplaySize(16, 64); sprite.setTint(0x00FF00);
+                            this.levelObjects.startX = obj.x; // store for spawn
                             break;
                         case 'end_flag':
                             sprite = this.matter.add.sprite(obj.x, y, 'fb_platform', null, { isStatic: true, isSensor: true, label: 'end_flag' });
-                            sprite.setDisplaySize(16, 64);
-                            sprite.setTint(0xFFFFFF);
+                            sprite.setDisplaySize(16, 64); sprite.setTint(0xFFFFFF);
                             break;
                     }
                     if(sprite) { sprite.objType = obj.t; this.levelObjects.push(sprite); }
@@ -352,17 +376,14 @@
             setupControls() {
                 this.input.addPointer(2);
                 this.rollBtnDown = false;
-
                 this.cursors = this.input.keyboard.createCursorKeys();
                 
-                // HTML Buttons events
                 const btnRoll = document.getElementById('btn-roll');
                 const btnJump = document.getElementById('btn-jump');
                 
                 btnRoll.addEventListener('pointerdown', () => this.rollBtnDown = true);
                 btnRoll.addEventListener('pointerup', () => this.rollBtnDown = false);
                 btnRoll.addEventListener('pointerout', () => this.rollBtnDown = false);
-                
                 btnJump.addEventListener('pointerdown', () => this.triggerJump());
             }
 
@@ -379,7 +400,7 @@
                         this.player.setFixedRotation();
                         this.player.rotation = 0;
                         this.player.setTexture(this.textures.exists('run') ? 'run' : 'fb_run');
-                        this.player.setDisplaySize(40, 40); // Maintain scale
+                        this.player.setDisplaySize(40, 40); 
                     }
                 }
             }
@@ -400,15 +421,28 @@
                                     document.getElementById('score-hud').innerText = `RINGS: ${this.rings}`;
                                     playRetroSound('ring');
                                 }
-                            } else if (other.label === 'spike') {
-                                this.die();
-                            } else if (other.label === 'boost') {
+                            } 
+                            // Pickup Scattered Rings
+                            else if (other.label === 'dropped_ring' && other.gameObject.canCollect) {
+                                if (!this.ringsToRemove.includes(other.gameObject)) {
+                                    this.ringsToRemove.push(other.gameObject);
+                                    this.rings++;
+                                    document.getElementById('score-hud').innerText = `RINGS: ${this.rings}`;
+                                    playRetroSound('ring');
+                                }
+                            }
+                            else if (other.label === 'spike') {
+                                this.hitDamage();
+                            } 
+                            else if (other.label === 'boost') {
                                 this.player.setVelocityY(-20);
                                 playRetroSound('boost');
-                            } else if (other.label === 'stop_point') {
+                            } 
+                            else if (other.label === 'stop_point') {
                                 this.playerState = 'stopped';
                                 this.player.setVelocity(0, 0);
-                            } else if (other.label === 'end_flag') {
+                            } 
+                            else if (other.label === 'end_flag') {
                                 this.win();
                             }
                         }
@@ -426,13 +460,54 @@
                 });
             }
 
+            hitDamage() {
+                if (this.isInvulnerable || this.playerState === 'dead' || this.playerState === 'won') return;
+                
+                if (this.rings > 0) {
+                    playRetroSound('hurt');
+                    const dropCount = Math.min(this.rings, 15); // Classic visual limit
+                    const tex = this.textures.exists('ring') ? 'ring' : 'fb_ring';
+                    
+                    for(let i=0; i<dropCount; i++) {
+                        let r = this.matter.add.sprite(this.player.x, this.player.y, tex, null, {
+                            shape: { type: 'circle', radius: 10 }, restitution: 0.8, frictionAir: 0.05, label: 'dropped_ring'
+                        });
+                        r.setDisplaySize(20, 20);
+                        r.canCollect = false; // Prevent instant grab
+                        setTimeout(() => { if(r && r.active) r.canCollect = true; }, 600);
+                        
+                        const angle = Math.random() * Math.PI; // Upwards arc
+                        const speed = 4 + Math.random() * 6;
+                        r.setVelocity(Math.cos(angle)*speed, -Math.sin(angle)*speed - 4);
+                        
+                        // Destroy scattered rings after some time
+                        this.tweens.add({ targets: r, alpha: 0, delay: 2000, duration: 500, onComplete: () => { if(r) r.destroy(); } });
+                    }
+                    
+                    this.rings = 0;
+                    document.getElementById('score-hud').innerText = `RINGS: 0`;
+                    this.isInvulnerable = true;
+                    this.player.setVelocity(-5, -8); // Knockback
+                    
+                    // Flicker Effect
+                    this.tweens.add({
+                        targets: this.player, alpha: 0.2, yoyo: true, repeat: 10, duration: 100,
+                        onComplete: () => { this.isInvulnerable = false; this.player.alpha = 1; }
+                    });
+                } else {
+                    this.die();
+                }
+            }
+
             die() {
                 if (this.playerState === 'dead') return;
                 this.playerState = 'dead';
-                playRetroSound('jump'); 
+                playRetroSound('hurt'); 
                 this.player.setStatic(true);
-                this.cameras.main.shake(200, 0.02);
-                setTimeout(() => this.scene.restart(), 1000);
+                this.cameras.main.shake(300, 0.02);
+                setTimeout(() => {
+                    document.getElementById('dead-menu').style.display = 'flex';
+                }, 1000);
             }
 
             win() {
@@ -440,8 +515,8 @@
                 this.playerState = 'won';
                 this.player.setVelocity(0,0);
                 setTimeout(() => {
-                    alert(`ZONE CLEARED!\nRINGS: ${this.rings}`);
-                    navToMenu();
+                    document.getElementById('final-score').innerText = `RINGS: ${this.rings}`;
+                    document.getElementById('win-menu').style.display = 'flex';
                 }, 500);
             }
 
@@ -458,10 +533,10 @@
                     if (obj.objType === 'moto_y' && obj.body) this.matter.body.setPosition(obj.body, { x: obj.x, y: obj.startY + Math.sin(time*0.002)*100 });
                 });
 
-                const bodies = this.matter.world.getAllBodies().filter(b => !b.isSensor && b.label !== 'player');
+                const bodies = this.matter.world.getAllBodies().filter(b => !b.isSensor && b.label !== 'player' && b.label !== 'dropped_ring');
                 const raycast = Phaser.Physics.Matter.Matter.Query.ray(bodies, 
                     { x: this.player.x, y: this.player.y }, 
-                    { x: this.player.x, y: this.player.y + 20 }
+                    { x: this.player.x, y: this.player.y + 22 }
                 );
                 this.isGrounded = raycast.length > 0;
 
@@ -477,7 +552,7 @@
                 if (intentRoll && this.isGrounded && this.playerState === 'running') {
                     this.playerState = 'rolling';
                     this.player.setTexture(this.textures.exists('roll') ? 'roll' : 'fb_roll');
-                    this.player.setDisplaySize(40, 40); // Strict size fix!
+                    this.player.setDisplaySize(40, 40); 
                     this.player.setFixedRotation(false); 
                 } else if (!intentRoll && this.playerState === 'rolling') {
                     this.playerState = 'running';
@@ -489,11 +564,14 @@
 
                 if (this.playerState === 'running') {
                     if (this.isTouchingRamp) {
-                        this.currentRunSpeed = this.baseSpeed * 0.4; // Slow down running on curve
+                        this.currentRunSpeed = this.baseSpeed * 0.4;
                         this.player.setVelocityX(this.currentRunSpeed);
                     } else {
-                        this.currentRunSpeed = Phaser.Math.Linear(this.currentRunSpeed, this.baseSpeed, 0.1);
-                        this.player.setVelocityX(this.currentRunSpeed);
+                        // Limit knockback backward speed naturally taking over
+                        if(this.player.body.velocity.x >= 0) {
+                            this.currentRunSpeed = Phaser.Math.Linear(this.currentRunSpeed, this.baseSpeed, 0.1);
+                            this.player.setVelocityX(this.currentRunSpeed);
+                        }
                     }
                     
                     if (!this.isGrounded) {
@@ -512,13 +590,11 @@
                     if (this.player.body.velocity.x > 1) this.player.rotation += 0.4;
                 }
 
-                if(this.bg) {
-                    this.bg.tilePositionX = this.cameras.main.scrollX * 0.5;
-                }
+                if(this.bg) this.bg.tilePositionX = this.cameras.main.scrollX * 0.5;
+                if(this.dirtVisual) this.dirtVisual.tilePositionX = this.cameras.main.scrollX;
             }
         }
 
-        // Initialize Phaser strictly filling the CSS-controlled Landscape wrapper
         function initGame() {
             const config = {
                 type: Phaser.AUTO,
@@ -537,6 +613,8 @@
         }
 
         function togglePause() {
+            if(document.getElementById('dead-menu').style.display === 'flex' || document.getElementById('win-menu').style.display === 'flex') return;
+            
             playRetroSound('ring');
             const scene = gameInstance.scene.getScene('PlayScene');
             if(!scene) return;
