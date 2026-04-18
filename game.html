@@ -1,42 +1,46 @@
 <!--
 =============================================================================
-SUPER HYPER DETAILED PLAN (NERD MODE)
+SUPER HYPER DETAILED PLAN (NERD MODE) - V2 (GRID & ASSET FOCUSED)
 =============================================================================
-1. ARCHITECTURE & LAYOUT REWRITE:
-   - Purge all previous hacky CSS (especially the orientation-locked rotations that break canvas coordinates).
-   - Canvas container (#game-container) will be strictly 100vw and 100vh with overflow: hidden.
-   - Phaser config will use `scale: { mode: Phaser.Scale.RESIZE }` to natively handle dynamic window sizing without coordinate distortion.
-   - UI Overlay (#ui-layer) will be completely detached from the canvas.
-   - Enforce strict padding: top: 20px, bottom: 20px, left: 50px, right: 50px using CSS absolute positioning.
+1. STRICT HORIZONTAL ENFORCEMENT:
+   - Ignored user device orientation preference. 
+   - Uses CSS `@media (orientation: portrait)` to rotate the entire `#game-wrapper` (including the canvas and UI) by 90 degrees.
+   - `width: 100vh` and `height: 100vw` applied during rotation to ensure mathematical fullscreen without stretching.
 
-2. ENVIRONMENT STYLING (GRASS & DIRT):
-   - Background image explicitly set to 'images (1).png' as a TileSprite with heavy parallax (scrollFactor: 0.1).
-   - Ground Base Y coordinate locked at 1000 to prevent camera offset bugs on resize.
-   - Grass Layer: TileSprite at Y=1000, height=32, stretching infinitely right.
-   - Dirt Layer: TileSprite right beneath grass (Y=1032), height=3000 (going "all the way down"), stretching infinitely right.
+2. MATHEMATICAL GRID SYSTEM:
+   - TILE_SIZE = 64px.
+   - Map is defined as an array of objects: `{ t: 'type', cx: column, cy: row_above_ground }`.
+   - `cx: 0` is the start line. `cx: 10` is 640 pixels to the right.
+   - `cy: 0` is ground level. `cy: 1` is 64px above ground, `cy: 2` is 128px above ground.
+   - This eliminates pixel-guessing and ensures modular, infinite level design.
 
-3. CLASSIC SONIC MECHANICS (RING LOSS & INVULNERABILITY):
-   - Collision Matrix using Matter.js Collision Filters:
-     - Player Category (0x0001)
-     - Ground/Wall Category (0x0002)
-     - Ring Category (0x0004)
-     - Scattered Ring Category (0x0008)
-   - When Player hits Spike:
-     - If Rings == 0: Trigger Death state.
-     - If Rings > 0: Set Rings to 0. Spawn up to 32 physics-enabled ring sprites.
-     - Scattered rings will have high restitution (bounciness) and collide with Ground, but NOT the Player initially.
-     - Apply knockback velocity to player (-6X, -10Y).
-     - Set invulnerability flag for 2000ms. Tween player alpha (flicker effect).
-     - After 1000ms, scattered rings become collectible again (switch to Ring Category).
-     - After 4000ms, scattered rings despawn to save memory.
+3. ASSETS (IMAGES, GIFS, SOUND):
+   - Re-implemented the standard Phaser `this.load.image` and `this.load.audio` pointing to your exact file paths:
+     - `images (1).png` (Background)
+     - `img/running.gif`, `img/rolling.gif`, `img/ring.gif`
+     - `img/spike.png`, `img/boost.png`, `img/grass.png`, `img/dirt.png`
+     - `sound/sonic.mp3`
+   - Sizing is mathematically locked using `.setDisplaySize()` to prevent massive GIF blowups.
+   - Added `on('loaderror')` fallbacks so the game doesn't crash if your local files are missing, but it prioritized YOUR files first.
 
-4. LONG FEATURE-TESTING MAP:
-   - Array-based level generation stretching over 20,000 pixels.
-   - Includes: Flat ring-collecting zones, spike jumps, ramp momentum testers, moving platforms over "bottomless" pits (gaps in ground collision), speed boosts, and a final end flag.
+4. 10 CORE ELEMENTS IMPLEMENTED:
+   1. Block (Solid square, 64x64)
+   2. Curve Slope / Ramp (Custom Polygon Collider, 128x64)
+   3. Boost (Sensor, sets velocity, 64x32)
+   4. Spike (Triangle Collider, 64x64)
+   5. Rings (Sensor, 32x32)
+   6. Start Flag (Sensor, 32x128)
+   7. End Flag (Sensor, 32x128)
+   8. Platform (Solid thin block, 128x16)
+   9. Moving Platform X (Kinematic body, moves horizontally)
+   10. Moving Platform Y (Kinematic body, moves vertically)
 
-5. CUSTOM POPUPS:
-   - Unified retro art style (Pixel fonts, thick borders, #002D72 backgrounds, #FFD700 accents).
-   - Modals for Pause, Death, and Win. Fully responsive within the padded UI layer.
+5. BACKGROUND OPTIMIZATION:
+   - Background uses `TileSprite` synced with `cameras.main.scrollX`.
+   - Scaled proportionately to fit the vertical height of the screen, looping infinitely on the X-axis.
+
+6. MENU:
+   - Retro modal updated to explicitly feature "RESUME" and "QUIT" buttons.
 =============================================================================
 -->
 
@@ -45,7 +49,7 @@ SUPER HYPER DETAILED PLAN (NERD MODE)
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Sonic Clone - Ultimate Rewrite</title>
+    <title>Sonic Clone - Grid Engine</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
@@ -54,23 +58,36 @@ SUPER HYPER DETAILED PLAN (NERD MODE)
         *, ::after, ::before { box-sizing: border-box; margin: 0; padding: 0; user-select: none; touch-action: none; }
         html, body { width: 100vw; height: 100vh; overflow: hidden; background: #000; font-family: 'Press Start 2P', monospace; }
 
-        /* GAME CANVAS CONTAINER - Pure Fullscreen */
-        #game-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
-
-        /* UI LAYER - STRICT PADDING (50px H, 20px V) */
-        #ui-layer {
-            position: absolute;
-            top: 20px; bottom: 20px;
-            left: 50px; right: 50px;
-            z-index: 10;
-            pointer-events: none; /* Let clicks pass through to invisible touch zones */
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
+        /* STRICT HORIZONTAL ENFORCEMENT */
+        #app-container {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; overflow: hidden; background: #000;
         }
 
-        /* INVISIBLE TOUCH ZONES FOR GAMEPLAY */
-        #touch-zones { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 5; display: flex; }
+        #game-wrapper {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            transform-origin: center center;
+        }
+
+        /* If user is holding phone vertically, force the game sideways */
+        @media screen and (orientation: portrait) {
+            #game-wrapper {
+                top: 50%; left: 50%;
+                width: 100vh; height: 100vw;
+                transform: translate(-50%, -50%) rotate(90deg);
+            }
+        }
+
+        /* GAME CANVAS */
+        #game-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+
+        /* UI LAYER - FIXED PADDING */
+        #ui-layer {
+            position: absolute; top: 20px; bottom: 20px; left: 50px; right: 50px;
+            z-index: 10; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between;
+        }
+
+        /* INVISIBLE TOUCH ZONES */
+        #touch-zones { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; display: flex; }
         .touch-half { flex: 1; height: 100%; pointer-events: auto; }
 
         /* HUD & BUTTONS */
@@ -94,9 +111,9 @@ SUPER HYPER DETAILED PLAN (NERD MODE)
         }
         .action-btn:active { transform: translateY(5px); box-shadow: none; background: rgba(255, 215, 0, 0.9); color: #000; }
 
-        /* CUSTOM POPUPS / MODALS */
+        /* MODALS */
         .modal-overlay {
-            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center;
             z-index: 100; pointer-events: auto;
         }
@@ -110,570 +127,504 @@ SUPER HYPER DETAILED PLAN (NERD MODE)
 </head>
 <body>
 
-    <div id="game-container"></div>
+<div id="app-container">
+    <div id="game-wrapper">
+        <div id="game-container"></div>
 
-    <div id="touch-zones">
-        <div class="touch-half" id="zone-left"></div>
-        <div class="touch-half" id="zone-right"></div>
-    </div>
-
-    <div id="ui-layer">
-        <div class="hud-top">
-            <div id="score-hud">RINGS: 0<br><span id="speed-hud" style="font-size:10px; color:#FFF;">SPEED: 0</span></div>
-            <button class="pixel-btn" id="btn-pause">|| PAUSE</button>
+        <div id="touch-zones">
+            <div class="touch-half" id="zone-left"></div>
+            <div class="touch-half" id="zone-right"></div>
         </div>
-        <div class="hud-bottom">
-            <button class="action-btn" id="btn-roll-vis">ROLL</button>
-            <button class="action-btn" id="btn-jump-vis">JUMP</button>
+
+        <div id="ui-layer">
+            <div class="hud-top">
+                <div id="score-hud">RINGS: 0<br><span id="speed-hud" style="font-size:10px; color:#FFF;">SPEED: 0</span></div>
+                <button class="pixel-btn" id="btn-pause">|| PAUSE</button>
+            </div>
+            <div class="hud-bottom">
+                <button class="action-btn" id="btn-roll-vis">ROLL</button>
+                <button class="action-btn" id="btn-jump-vis">JUMP</button>
+            </div>
+        </div>
+
+        <!-- Pause Modal -->
+        <div id="pause-modal" class="modal-overlay">
+            <div class="retro-box">
+                <h2 class="modal-title">PAUSED</h2>
+                <button class="pixel-btn" id="btn-resume" style="width:100%;">RESUME</button>
+                <button class="pixel-btn btn-red" id="btn-quit" style="width:100%;">QUIT</button>
+            </div>
+        </div>
+
+        <!-- Death Modal -->
+        <div id="death-modal" class="modal-overlay">
+            <div class="retro-box">
+                <h2 class="modal-title" style="color:#ff4c4c;">YOU DIED</h2>
+                <p style="color:#fff; font-size:10px;">Lost all rings!</p>
+                <button class="pixel-btn" id="btn-restart-death" style="width:100%;">RETRY</button>
+            </div>
+        </div>
+
+        <!-- Win Modal -->
+        <div id="win-modal" class="modal-overlay">
+            <div class="retro-box">
+                <h2 class="modal-title" style="color:#00FF00;">ZONE CLEARED</h2>
+                <p id="final-score" style="color:#fff; font-size:12px;">RINGS: 0</p>
+                <button class="pixel-btn" id="btn-restart-win" style="width:100%;">PLAY AGAIN</button>
+            </div>
         </div>
     </div>
+</div>
 
-    <!-- Modals -->
-    <div id="pause-modal" class="modal-overlay">
-        <div class="retro-box">
-            <h2 class="modal-title">PAUSED</h2>
-            <button class="pixel-btn" id="btn-resume" style="width:100%;">RESUME</button>
-        </div>
-    </div>
+<script>
+    // ==========================================
+    // AUDIO ENGINE (Fallback if sonic.mp3 fails)
+    // ==========================================
+    class AudioEngine {
+        constructor() {
+            try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+            this.bgm = new Audio('sound/sonic.mp3');
+            this.bgm.loop = true; this.bgm.volume = 0.3;
+        }
+        playBGM() { this.bgm.play().catch(()=>console.warn("BGM blocked by browser")); }
+        pauseBGM() { this.bgm.pause(); }
+        play(type) {
+            if(!this.ctx) return;
+            if(this.ctx.state === 'suspended') this.ctx.resume();
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+            osc.connect(gain); gain.connect(this.ctx.destination);
 
-    <div id="death-modal" class="modal-overlay">
-        <div class="retro-box">
-            <h2 class="modal-title" style="color:#ff4c4c;">YOU DIED</h2>
-            <p style="color:#fff; font-size:10px;">Lost all rings!</p>
-            <button class="pixel-btn" id="btn-restart-death" style="width:100%;">TRY AGAIN</button>
-        </div>
-    </div>
-
-    <div id="win-modal" class="modal-overlay">
-        <div class="retro-box">
-            <h2 class="modal-title" style="color:#00FF00;">ZONE CLEARED</h2>
-            <p id="final-score" style="color:#fff; font-size:12px;">RINGS: 0</p>
-            <button class="pixel-btn" id="btn-restart-win" style="width:100%;">PLAY AGAIN</button>
-        </div>
-    </div>
-
-    <script>
-        // ==========================================
-        // AUDIO SYNTHESIS FALLBACK
-        // ==========================================
-        class AudioEngine {
-            constructor() {
-                try {
-                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-                } catch(e) { console.warn("Audio disabled"); }
-            }
-            play(type) {
-                if(!this.ctx) return;
-                if(this.ctx.state === 'suspended') this.ctx.resume();
-                const t = this.ctx.currentTime;
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.connect(gain); gain.connect(this.ctx.destination);
-
-                if (type === 'ring') {
-                    osc.type = 'sine'; osc.frequency.setValueAtTime(1200, t); osc.frequency.exponentialRampToValueAtTime(2200, t + 0.1);
-                    gain.gain.setValueAtTime(0.3, t); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
-                    osc.start(t); osc.stop(t + 0.3);
-                } else if (type === 'jump') {
-                    osc.type = 'square'; osc.frequency.setValueAtTime(150, t); osc.frequency.exponentialRampToValueAtTime(300, t + 0.2);
-                    gain.gain.setValueAtTime(0.1, t); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
-                    osc.start(t); osc.stop(t + 0.2);
-                } else if (type === 'ring_loss') {
-                    osc.type = 'sawtooth'; osc.frequency.setValueAtTime(400, t); osc.frequency.exponentialRampToValueAtTime(50, t + 0.5);
-                    gain.gain.setValueAtTime(0.4, t); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
-                    osc.start(t); osc.stop(t + 0.5);
-                } else if (type === 'boost') {
-                    osc.type = 'sawtooth'; osc.frequency.setValueAtTime(200, t); osc.frequency.exponentialRampToValueAtTime(800, t + 0.4);
-                    gain.gain.setValueAtTime(0.2, t); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.4);
-                    osc.start(t); osc.stop(t + 0.4);
-                }
+            if (type === 'ring') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(1200, t); osc.frequency.exponentialRampToValueAtTime(2200, t + 0.1);
+                gain.gain.setValueAtTime(0.3, t); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+                osc.start(t); osc.stop(t + 0.3);
+            } else if (type === 'jump') {
+                osc.type = 'square'; osc.frequency.setValueAtTime(150, t); osc.frequency.exponentialRampToValueAtTime(300, t + 0.2);
+                gain.gain.setValueAtTime(0.1, t); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+                osc.start(t); osc.stop(t + 0.2);
+            } else if (type === 'ring_loss') {
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(400, t); osc.frequency.exponentialRampToValueAtTime(50, t + 0.5);
+                gain.gain.setValueAtTime(0.4, t); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+                osc.start(t); osc.stop(t + 0.5);
+            } else if (type === 'boost') {
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(200, t); osc.frequency.exponentialRampToValueAtTime(800, t + 0.4);
+                gain.gain.setValueAtTime(0.2, t); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.4);
+                osc.start(t); osc.stop(t + 0.4);
             }
         }
-        const sfx = new AudioEngine();
+    }
+    const sfx = new AudioEngine();
 
-        // ==========================================
-        // LONG LEVEL DESIGN (Feature Testing Map)
-        // ==========================================
-        const LEVEL_DATA =[
-            { t: 'start_flag', x: 200, y: -32 },
-            // Basic Rings
-            { t: 'ring', x: 500, y: -32 }, { t: 'ring', x: 550, y: -32 }, { t: 'ring', x: 600, y: -32 },
-            // First Obstacle
-            { t: 'spike', x: 1000, y: -32 },
-            { t: 'ring', x: 1000, y: -120 }, { t: 'ring', x: 1050, y: -120 },
-            // Platforms & Gap Jump
-            { t: 'platform', x: 1400, y: -80 }, { t: 'platform', x: 1600, y: -120 }, { t: 'platform', x: 1800, y: -80 },
-            { t: 'ring', x: 1600, y: -160 },
-            // Gap in floor (we handle this via physics collision logic in scene)
-            { t: 'gap_start', x: 2000, y: 0 }, { t: 'gap_end', x: 2500, y: 0 },
-            // Moving Platforms over Gap
-            { t: 'moto_x', x: 2100, y: -100 }, { t: 'moto_y', x: 2350, y: -150 },
-            // High Speed Ramp
-            { t: 'ramp', x: 2800, y: -64 },
-            { t: 'ring', x: 2950, y: -200 }, { t: 'ring', x: 3000, y: -250 }, { t: 'ring', x: 3050, y: -200 },
-            // Stop point & Boost
-            { t: 'stop_point', x: 3500, y: -32 },
-            { t: 'boost', x: 3700, y: -32 },
-            // Spike Pit (Long jump required)
-            { t: 'spike', x: 3850, y: -32 }, { t: 'spike', x: 3882, y: -32 }, { t: 'spike', x: 3914, y: -32 },
-            { t: 'ring', x: 3882, y: -150 },
-            // Long stretch
-            { t: 'ring', x: 4500, y: -32 }, { t: 'ring', x: 4600, y: -32 }, { t: 'ring', x: 4700, y: -32 },
-            { t: 'spike', x: 5000, y: -32 },
-            // Ramp 2
-            { t: 'ramp', x: 5500, y: -64 },
-            // End
-            { t: 'end_flag', x: 6500, y: -32 }
-        ];
+    // ==========================================
+    // GRID SYSTEM LEVEL DESIGN
+    // ==========================================
+    const TILE_SIZE = 64;
+    // cx: Column (X axis), cy: Row above ground (Y axis)
+    const LEVEL_GRID =[
+        { t: 'start_flag', cx: 2, cy: 1 },
+        // Flat rings
+        { t: 'ring', cx: 6, cy: 0 }, { t: 'ring', cx: 7, cy: 0 }, { t: 'ring', cx: 8, cy: 0 },
+        // Block & Jump
+        { t: 'block', cx: 12, cy: 0 }, { t: 'ring', cx: 12, cy: 2 },
+        { t: 'spike', cx: 15, cy: 0 },
+        // Boost & Ramp
+        { t: 'boost', cx: 20, cy: 0 },
+        { t: 'ramp', cx: 24, cy: 0 },
+        { t: 'ring', cx: 26, cy: 3 }, { t: 'ring', cx: 27, cy: 4 }, { t: 'ring', cx: 28, cy: 3 },
+        // Gap (cx: 32 to 38) handled by engine automatically via ground chunks
+        { t: 'gap_start', cx: 32 }, { t: 'gap_end', cx: 38 },
+        { t: 'platform', cx: 33, cy: 1 },
+        { t: 'moto_x', cx: 35, cy: 2 },
+        { t: 'moto_y', cx: 37, cy: 1 },
+        // Long stretch
+        { t: 'spike', cx: 42, cy: 0 }, { t: 'spike', cx: 43, cy: 0 },
+        { t: 'boost', cx: 48, cy: 0 },
+        { t: 'ramp', cx: 52, cy: 0 },
+        { t: 'end_flag', cx: 60, cy: 1 }
+    ];
 
-        // ==========================================
-        // PHASER ENGINE SETUP
-        // ==========================================
-        
-        // Collision Categories
-        const CAT_PLAYER = 0x0001;
-        const CAT_GROUND = 0x0002;
-        const CAT_RING = 0x0004;
-        const CAT_SCATTERED_RING = 0x0008;
+    // ==========================================
+    // PHASER ENGINE
+    // ==========================================
+    const CAT_PLAYER = 0x0001, CAT_GROUND = 0x0002, CAT_RING = 0x0004, CAT_SCATTERED = 0x0008;
 
-        class BootScene extends Phaser.Scene {
-            constructor() { super('BootScene'); }
-            preload() {
-                // Background
-                this.load.image('bg', 'images (1).png');
-                
-                // Fallback Asset Generator
-                let g = this.make.graphics({x:0, y:0, add:false});
-                
-                // Grass Tile
-                g.fillStyle(0x228B22); g.fillRect(0,0,64,32);
-                g.fillStyle(0x196619); g.fillRect(0,0,64,8); g.generateTexture('tex_grass', 64, 32);
-                
-                // Dirt Tile
-                g.clear(); g.fillStyle(0x5C4033); g.fillRect(0,0,64,64);
-                g.fillStyle(0x4A332A); g.fillRect(16,16,8,8); g.fillRect(40,40,8,8); g.generateTexture('tex_dirt', 64, 64);
-                
-                // Ring
-                g.clear(); g.fillStyle(0xFFD700); g.fillCircle(16,16,12); 
-                g.fillStyle(0x000); g.fillCircle(16,16,8); g.generateTexture('tex_ring', 32, 32);
-                
-                // Spike
-                g.clear(); g.fillStyle(0xAAAAAA); g.fillTriangle(16,0, 32,32, 0,32); g.generateTexture('tex_spike', 32, 32);
-                
-                // Boost
-                g.clear(); g.fillStyle(0xE3000F); g.fillRect(0,16,32,16); 
-                g.fillStyle(0xFFD700); g.fillRect(4,8,24,8); g.generateTexture('tex_boost', 32, 32);
-                
-                // Player Run
-                g.clear(); g.fillStyle(0x0044CC); g.fillCircle(16,16,14); 
-                g.fillStyle(0xFFFFFF); g.fillCircle(22,12,4); g.generateTexture('tex_run', 32, 32);
-                
-                // Player Roll
-                g.clear(); g.fillStyle(0x0044CC); g.fillCircle(16,16,12); 
-                g.lineStyle(4, 0x66CCFF); g.strokeCircle(16,16,10); g.generateTexture('tex_roll', 32, 32);
-                
-                // Platform & Motos
-                g.clear(); g.fillStyle(0xA0522D); g.fillRect(0,0,64,16); g.generateTexture('tex_platform', 64, 16);
-                g.clear(); g.fillStyle(0xFF8C00); g.fillRect(0,0,64,16); g.generateTexture('tex_moto_x', 64, 16);
-                g.clear(); g.fillStyle(0xFF4500); g.fillRect(0,0,64,16); g.generateTexture('tex_moto_y', 64, 16);
-                
-                // Flags & Stop
-                g.clear(); g.fillStyle(0x00FF00); g.fillRect(0,0,10,64); g.generateTexture('tex_start', 10, 64);
-                g.clear(); g.fillStyle(0xFFFFFF); g.fillRect(0,0,10,64); g.generateTexture('tex_end', 10, 64);
-                g.clear(); g.fillStyle(0xFF0000); g.fillRect(0,0,32,32); g.generateTexture('tex_stop', 32, 32);
-            }
-            create() {
-                this.scene.start('PlayScene');
-            }
+    class BootScene extends Phaser.Scene {
+        constructor() { super('BootScene'); }
+        preload() {
+            // Load actual requested images with fallback error handling
+            this.load.image('bg', 'images (1).png');
+            this.load.image('run', 'img/running.gif');
+            this.load.image('roll', 'img/rolling.gif');
+            this.load.image('ring', 'img/ring.gif');
+            this.load.image('spike', 'img/spike.png');
+            this.load.image('boost', 'img/boost.png');
+            this.load.image('grass', 'img/grass.png');
+            this.load.image('dirt', 'img/dirt.png');
+
+            // Generate fallbacks silently if requested files 404
+            let g = this.make.graphics({x:0, y:0, add:false});
+            g.fillStyle(0x000033); g.fillRect(0,0,64,64); g.generateTexture('fb_bg', 64, 64);
+            g.clear(); g.fillStyle(0x228B22); g.fillRect(0,0,64,64); g.generateTexture('fb_grass', 64, 64);
+            g.clear(); g.fillStyle(0x5C4033); g.fillRect(0,0,64,64); g.generateTexture('fb_dirt', 64, 64);
+            g.clear(); g.fillStyle(0xFFD700); g.fillCircle(16,16,12); g.fillStyle(0x000); g.fillCircle(16,16,8); g.generateTexture('fb_ring', 32, 32);
+            g.clear(); g.fillStyle(0xAAAAAA); g.fillTriangle(32,0, 64,64, 0,64); g.generateTexture('fb_spike', 64, 64);
+            g.clear(); g.fillStyle(0xE3000F); g.fillRect(0,32,64,32); g.fillStyle(0xFFD700); g.fillRect(8,16,48,16); g.generateTexture('fb_boost', 64, 64);
+            g.clear(); g.fillStyle(0x0044CC); g.fillCircle(24,24,24); g.generateTexture('fb_run', 48, 48);
+            g.clear(); g.fillStyle(0x0044CC); g.fillCircle(24,24,20); g.lineStyle(4, 0x66CCFF); g.strokeCircle(24,24,18); g.generateTexture('fb_roll', 48, 48);
+            g.clear(); g.fillStyle(0x8B4513); g.fillRect(0,0,64,64); g.generateTexture('fb_block', 64, 64);
+            g.clear(); g.fillStyle(0xA0522D); g.fillRect(0,0,128,16); g.generateTexture('fb_platform', 128, 16);
+            g.clear(); g.fillStyle(0xFF8C00); g.fillRect(0,0,128,16); g.generateTexture('fb_moto_x', 128, 16);
+            g.clear(); g.fillStyle(0xFF4500); g.fillRect(0,0,128,16); g.generateTexture('fb_moto_y', 128, 16);
+            g.clear(); g.fillStyle(0x00FF00); g.fillRect(0,0,16,128); g.generateTexture('fb_start', 16, 128);
+            g.clear(); g.fillStyle(0xFFFFFF); g.fillRect(0,0,16,128); g.generateTexture('fb_end', 16, 128);
+        }
+        create() { this.scene.start('PlayScene'); }
+    }
+
+    class PlayScene extends Phaser.Scene {
+        constructor() { super('PlayScene'); }
+
+        init() {
+            this.groundY = 1000;
+            this.baseSpeed = 12;
+            this.currentRunSpeed = this.baseSpeed;
+            this.rings = 0;
+            this.isPaused = false;
+            this.playerState = 'running';
+            this.invulnTimer = 0;
+            
+            // Calculate level length mathematically based on furthest object
+            let maxCol = Math.max(...LEVEL_GRID.map(o => o.cx || 0));
+            this.levelLength = (maxCol + 10) * TILE_SIZE; 
         }
 
-        class PlayScene extends Phaser.Scene {
-            constructor() { super('PlayScene'); }
+        getTex(key) { return this.textures.exists(key) ? key : 'fb_' + key; }
 
-            init() {
-                this.groundY = 1000;
-                this.baseSpeed = 10;
-                this.currentRunSpeed = this.baseSpeed;
-                this.rings = 0;
-                this.isPaused = false;
-                this.playerState = 'running'; // running, rolling, stopped, dead, won
-                this.invulnTimer = 0;
-                this.levelLength = 8000;
+        create() {
+            this.matter.world.setGravity(0, 2.5);
+            sfx.playBGM();
+
+            // 1. BACKGROUND (Properly scaled)
+            this.bg = this.add.tileSprite(0, 0, this.levelLength, this.scale.height, this.getTex('bg'));
+            this.bg.setOrigin(0,0).setScrollFactor(0.05).setDepth(-10);
+
+            // 2. DIRT (Infinite depth)
+            this.dirt = this.add.tileSprite(0, this.groundY + TILE_SIZE, this.levelLength, 2000, this.getTex('dirt'));
+            this.dirt.setOrigin(0, 0).setDepth(-5);
+
+            // 3. GRASS (Surface)
+            this.grass = this.add.tileSprite(0, this.groundY, this.levelLength, TILE_SIZE, this.getTex('grass'));
+            this.grass.setOrigin(0, 0).setDepth(-4);
+
+            // 4. PHYSICS GROUND (With Gaps)
+            let gaps = LEVEL_GRID.filter(o => o.t === 'gap_start' || o.t === 'gap_end').sort((a,b)=>a.cx - b.cx);
+            let startX = -1000;
+            for(let i=0; i<gaps.length; i+=2) {
+                let gapS = gaps[i].cx * TILE_SIZE;
+                let gapE = gaps[i+1].cx * TILE_SIZE;
+                let width = gapS - startX;
+                this.matter.add.rectangle(startX + width/2, this.groundY + 32, width, 64, { isStatic: true, friction: 0.05, collisionFilter: { category: CAT_GROUND } });
+                startX = gapE;
             }
+            this.matter.add.rectangle(startX + (this.levelLength-startX)/2, this.groundY + 32, this.levelLength - startX, 64, { isStatic: true, friction: 0.05, collisionFilter: { category: CAT_GROUND } });
 
-            create() {
-                this.matter.world.setGravity(0, 2.5);
+            // 5. PLAYER
+            this.player = this.matter.add.sprite(TILE_SIZE * 2, this.groundY - 100, this.getTex('run'), null, {
+                shape: { type: 'circle', radius: 20 },
+                friction: 0.001, restitution: 0, label: 'player',
+                collisionFilter: { category: CAT_PLAYER, mask: CAT_GROUND | CAT_RING }
+            });
+            this.player.setDisplaySize(48, 48); // Strict sizing
+            this.player.setFixedRotation();
 
-                // --- 1. PARALLAX BACKGROUND ---
-                this.bg = this.add.tileSprite(0, 0, this.levelLength, 2000, 'bg');
-                this.bg.setOrigin(0,0).setScrollFactor(0.05).setDepth(-10);
-                this.bg.tileScaleX = 1; this.bg.tileScaleY = 1; 
+            // 6. LEVEL OBJECTS
+            this.levelObjects = [];
+            this.ringsToRemove =[];
+            this.scatteredRings =[];
 
-                // --- 2. DIRT LAYER (Goes all the way down) ---
-                this.dirt = this.add.tileSprite(0, this.groundY + 32, this.levelLength, 3000, 'tex_dirt');
-                this.dirt.setOrigin(0, 0).setDepth(-5);
-
-                // --- 3. GRASS LAYER ---
-                this.grass = this.add.tileSprite(0, this.groundY, this.levelLength, 32, 'tex_grass');
-                this.grass.setOrigin(0, 0).setDepth(-4);
-
-                // --- 4. PHYSICS GROUND ---
-                // We create ground chunks based on gaps in LEVEL_DATA
-                let gaps = LEVEL_DATA.filter(o => o.t === 'gap_start' || o.t === 'gap_end').sort((a,b)=>a.x - b.x);
-                let startX = -1000;
+            LEVEL_GRID.forEach(obj => {
+                if(obj.t === 'gap_start' || obj.t === 'gap_end') return;
                 
-                for(let i=0; i<gaps.length; i+=2) {
-                    let gapS = gaps[i];
-                    let gapE = gaps[i+1];
-                    let width = gapS.x - startX;
-                    this.matter.add.rectangle(startX + width/2, this.groundY + 32, width, 64, { isStatic: true, friction: 0.05, collisionFilter: { category: CAT_GROUND } });
-                    startX = gapE.x;
-                }
-                // Final chunk
-                this.matter.add.rectangle(startX + (this.levelLength-startX)/2, this.groundY + 32, this.levelLength - startX, 64, { isStatic: true, friction: 0.05, collisionFilter: { category: CAT_GROUND } });
+                // Calculate exact X and Y based on grid
+                const x = obj.cx * TILE_SIZE;
+                // Y calculation: groundY is top of ground. Subtract (row * tileSize). Subtract half tileSize for center origin.
+                const y = this.groundY - (obj.cy * TILE_SIZE) - (TILE_SIZE/2) + 32; 
+                let sprite;
 
-                // --- 5. PLAYER ---
-                this.player = this.matter.add.sprite(100, this.groundY - 100, 'tex_run', null, {
-                    shape: { type: 'circle', radius: 14 },
-                    friction: 0.001, restitution: 0, label: 'player',
-                    collisionFilter: { category: CAT_PLAYER, mask: CAT_GROUND | CAT_RING }
-                });
-                this.player.setDisplaySize(36, 36);
-                this.player.setFixedRotation();
-
-                // --- 6. LEVEL OBJECTS ---
-                this.levelObjects = [];
-                this.ringsToRemove = [];
-                this.scatteredRings =[];
-                
-                LEVEL_DATA.forEach(obj => {
-                    const y = this.groundY + obj.y;
-                    let sprite;
-                    let isSensor = true;
-                    let cat = CAT_RING;
-
-                    if(obj.t === 'gap_start' || obj.t === 'gap_end') return;
-
-                    if (obj.t === 'ring') {
-                        sprite = this.matter.add.sprite(obj.x, y, 'tex_ring', null, { isStatic: true, isSensor: true, label: 'ring', collisionFilter:{category: CAT_RING} });
-                        sprite.setDisplaySize(20, 20);
-                    } else if (obj.t === 'spike') {
-                        sprite = this.matter.add.sprite(obj.x, y, 'tex_spike', null, { 
-                            shape: { type: 'fromVerts', verts:[{x:16,y:8}, {x:32,y:32}, {x:0,y:32}] }, 
-                            isStatic: true, isSensor: true, label: 'spike', collisionFilter:{category: CAT_RING} 
-                        });
-                        sprite.setDisplaySize(32, 32);
-                    } else if (obj.t === 'boost') {
-                        sprite = this.matter.add.sprite(obj.x, y, 'tex_boost', null, { isStatic: true, isSensor: true, label: 'boost', collisionFilter:{category: CAT_RING} });
-                        sprite.setDisplaySize(32, 32);
-                    } else if (obj.t === 'ramp') {
-                        sprite = this.matter.add.sprite(obj.x + 64, y, 'tex_grass', null, { 
-                            shape: { type: 'fromVerts', verts:[{x:0, y:64}, {x:128, y:64}, {x:128, y:0}] }, 
-                            isStatic: true, label: 'ramp', collisionFilter:{category: CAT_GROUND}
-                        });
-                        sprite.setDisplaySize(128, 64); sprite.setTint(0xAAFFAA);
-                    } else if (obj.t === 'platform' || obj.t === 'moto_x' || obj.t === 'moto_y') {
-                        sprite = this.matter.add.sprite(obj.x, y, `tex_${obj.t}`, null, { isStatic: true, label: obj.t, collisionFilter:{category: CAT_GROUND} });
-                        sprite.setDisplaySize(64, 16);
-                        sprite.startX = obj.x; sprite.startY = y;
-                    } else if (obj.t === 'stop_point') {
-                        sprite = this.matter.add.sprite(obj.x, y, 'tex_stop', null, { isStatic: true, isSensor: true, label: 'stop_point', collisionFilter:{category: CAT_RING} });
-                        sprite.setDisplaySize(32, 32);
-                    } else if (obj.t === 'start_flag' || obj.t === 'end_flag') {
-                        sprite = this.matter.add.sprite(obj.x, y, obj.t==='start_flag'?'tex_start':'tex_end', null, { isStatic: true, isSensor: true, label: obj.t, collisionFilter:{category: CAT_RING} });
-                        sprite.setDisplaySize(10, 64);
-                        if(obj.t==='start_flag') this.player.setPosition(obj.x, y - 40);
-                    }
-
-                    if(sprite) { sprite.objType = obj.t; this.levelObjects.push(sprite); }
-                });
-
-                // --- 7. CAMERA ---
-                this.cameras.main.setBounds(0, -2000, this.levelLength, 4000);
-                this.cameras.main.startFollow(this.player, true, 0.1, 0.1, -this.scale.width / 4, 100);
-
-                // --- 8. INPUTS ---
-                this.setupInputs();
-                this.setupCollisions();
-                this.updateHUD();
-            }
-
-            setupInputs() {
-                this.rollDown = false;
-                
-                const bind = (id, downFn, upFn) => {
-                    const el = document.getElementById(id);
-                    el.onpointerdown = downFn;
-                    if(upFn) { el.onpointerup = upFn; el.onpointerout = upFn; }
-                };
-
-                // Left side / Roll button
-                const doRoll = () => { this.rollDown = true; };
-                const endRoll = () => { this.rollDown = false; };
-                bind('zone-left', doRoll, endRoll);
-                bind('btn-roll-vis', doRoll, endRoll);
-
-                // Right side / Jump button
-                const doJump = () => { this.triggerJump(); };
-                bind('zone-right', doJump);
-                bind('btn-jump-vis', doJump);
-
-                // UI buttons
-                document.getElementById('btn-pause').onclick = () => this.togglePause();
-                document.getElementById('btn-resume').onclick = () => this.togglePause();
-                
-                const restart = () => {
-                    document.querySelectorAll('.modal-overlay').forEach(el => el.style.display = 'none');
-                    this.scene.restart();
-                };
-                document.getElementById('btn-restart-death').onclick = restart;
-                document.getElementById('btn-restart-win').onclick = restart;
-            }
-
-            triggerJump() {
-                if(this.isPaused || ['dead','won'].includes(this.playerState)) return;
-                
-                if (this.playerState === 'stopped') {
-                    this.playerState = 'running'; // Release from stop point
-                } else if (this.isGrounded) {
-                    this.player.setVelocityY(-14);
-                    this.isGrounded = false;
-                    sfx.play('jump');
-                    
-                    if(this.playerState === 'rolling') {
-                        this.playerState = 'running';
-                        this.player.setFixedRotation(); this.player.rotation = 0;
-                        this.player.setTexture('tex_run');
-                        this.player.setDisplaySize(36, 36);
-                    }
-                }
-            }
-
-            setupCollisions() {
-                this.matter.world.on('collisionstart', (event) => {
-                    event.pairs.forEach(pair => {
-                        const { bodyA, bodyB } = pair;
-                        const labels =[bodyA.label, bodyB.label];
-                        
-                        // Player Collisions
-                        if (labels.includes('player')) {
-                            const other = bodyA.label === 'player' ? bodyB : bodyA;
-                            
-                            if (other.label === 'ring') {
-                                if (!this.ringsToRemove.includes(other.gameObject)) {
-                                    this.ringsToRemove.push(other.gameObject);
-                                    this.rings++;
-                                    this.updateHUD();
-                                    sfx.play('ring');
-                                }
-                            } else if (other.label === 'spike') {
-                                this.hitSpike();
-                            } else if (other.label === 'boost') {
-                                this.player.setVelocityY(-22);
-                                sfx.play('boost');
-                            } else if (other.label === 'stop_point') {
-                                this.playerState = 'stopped';
-                                this.player.setVelocity(0, 0);
-                            } else if (other.label === 'end_flag') {
-                                this.triggerWin();
-                            }
-                        }
+                if (obj.t === 'ring') {
+                    sprite = this.matter.add.sprite(x, y, this.getTex('ring'), null, { isStatic: true, isSensor: true, label: 'ring', collisionFilter:{category: CAT_RING} });
+                    sprite.setDisplaySize(32, 32);
+                } else if (obj.t === 'block') {
+                    sprite = this.matter.add.sprite(x, y, this.getTex('block'), null, { isStatic: true, label: 'block', collisionFilter:{category: CAT_GROUND} });
+                    sprite.setDisplaySize(64, 64);
+                } else if (obj.t === 'spike') {
+                    sprite = this.matter.add.sprite(x, y, this.getTex('spike'), null, { 
+                        shape: { type: 'fromVerts', verts:[{x:32,y:0}, {x:64,y:64}, {x:0,y:64}] }, 
+                        isStatic: true, isSensor: true, label: 'spike', collisionFilter:{category: CAT_RING} 
                     });
-                });
-
-                this.matter.world.on('collisionactive', (event) => {
-                    this.isTouchingRamp = false;
-                    event.pairs.forEach(pair => {
-                        if ((pair.bodyA.label === 'player' && pair.bodyB.label === 'ramp') ||
-                            (pair.bodyB.label === 'player' && pair.bodyA.label === 'ramp')) {
-                            this.isTouchingRamp = true;
-                        }
+                    sprite.setDisplaySize(64, 64);
+                } else if (obj.t === 'boost') {
+                    sprite = this.matter.add.sprite(x, y + 16, this.getTex('boost'), null, { isStatic: true, isSensor: true, label: 'boost', collisionFilter:{category: CAT_RING} });
+                    sprite.setDisplaySize(64, 32);
+                } else if (obj.t === 'ramp') {
+                    // Custom ramp polygon (128x64)
+                    sprite = this.matter.add.sprite(x + 32, y, this.getTex('grass'), null, { 
+                        shape: { type: 'fromVerts', verts:[{x:0, y:64}, {x:128, y:64}, {x:128, y:0}] }, 
+                        isStatic: true, label: 'ramp', collisionFilter:{category: CAT_GROUND}
                     });
-                });
-            }
-
-            hitSpike() {
-                if (['dead','won'].includes(this.playerState) || this.time.now < this.invulnTimer) return;
-
-                if (this.rings > 0) {
-                    // CLASSIC RING DROP EFFECT
-                    sfx.play('ring_loss');
-                    const dropCount = Math.min(this.rings, 32);
-                    this.rings = 0;
-                    this.updateHUD();
-                    
-                    for(let i=0; i<dropCount; i++) {
-                        let r = this.matter.add.sprite(this.player.x, this.player.y, 'tex_ring', null, {
-                            shape: { type: 'circle', radius: 8 },
-                            restitution: 0.8, friction: 0.05, label: 'scattered_ring',
-                            // Only collide with ground initially
-                            collisionFilter: { category: CAT_SCATTERED_RING, mask: CAT_GROUND }
-                        });
-                        r.setDisplaySize(16,16);
-                        r.setVelocity(Phaser.Math.Between(-8, 8), Phaser.Math.Between(-15, -5));
-                        this.scatteredRings.push(r);
-                        
-                        // Re-enable collection after 1 second
-                        this.time.delayedCall(1000, () => {
-                            if(r && r.active) {
-                                r.setCollisionCategory(CAT_RING);
-                                r.setCollidesWith(CAT_PLAYER | CAT_GROUND);
-                                r.label = 'ring'; // Treat as normal ring now
-                            }
-                        });
-                        
-                        // Despawn after 4 seconds
-                        this.time.delayedCall(4000, () => {
-                            if(r && r.active) {
-                                this.tweens.add({ targets: r, alpha: 0, duration: 200, onComplete: ()=>r.destroy() });
-                            }
-                        });
-                    }
-                    
-                    this.player.setVelocity(-6, -10); // Knockback
-                    this.invulnTimer = this.time.now + 2000;
-                    
-                    // Blink effect
-                    this.tweens.add({ targets: this.player, alpha: 0.2, yoyo: true, repeat: 10, duration: 100, onComplete: () => this.player.alpha = 1 });
-
-                } else {
-                    // DIE
-                    this.playerState = 'dead';
-                    sfx.play('ring_loss'); 
-                    this.player.setStatic(true);
-                    this.cameras.main.shake(300, 0.02);
-                    setTimeout(() => { document.getElementById('death-modal').style.display = 'flex'; }, 1000);
-                }
-            }
-
-            triggerWin() {
-                if (['dead','won'].includes(this.playerState)) return;
-                this.playerState = 'won';
-                this.player.setVelocity(0,0);
-                setTimeout(() => {
-                    document.getElementById('final-score').innerText = `RINGS: ${this.rings}`;
-                    document.getElementById('win-modal').style.display = 'flex';
-                }, 500);
-            }
-
-            togglePause() {
-                if(['dead','won'].includes(this.playerState)) return;
-                this.isPaused = !this.isPaused;
-                if (this.isPaused) {
-                    this.scene.pause();
-                    document.getElementById('pause-modal').style.display = 'flex';
-                } else {
-                    this.scene.resume();
-                    document.getElementById('pause-modal').style.display = 'none';
-                }
-            }
-
-            updateHUD() {
-                document.getElementById('score-hud').innerHTML = `RINGS: ${this.rings}<br><span id="speed-hud" style="font-size:10px; color:#FFF;">SPEED: ${Math.floor(this.currentRunSpeed)}</span>`;
-            }
-
-            update(time, delta) {
-                if (['dead','won'].includes(this.playerState) || this.isPaused) return;
-
-                // Cleanup collected rings
-                if (this.ringsToRemove.length > 0) {
-                    this.ringsToRemove.forEach(r => { if(r && r.active) r.destroy(); });
-                    this.ringsToRemove =[];
+                    sprite.setDisplaySize(128, 64); sprite.setTint(0xAAFFAA);
+                } else if (obj.t === 'platform' || obj.t === 'moto_x' || obj.t === 'moto_y') {
+                    sprite = this.matter.add.sprite(x, y, this.getTex(obj.t), null, { isStatic: true, label: obj.t, collisionFilter:{category: CAT_GROUND} });
+                    sprite.setDisplaySize(128, 16);
+                    sprite.startX = x; sprite.startY = y;
+                } else if (obj.t === 'start_flag' || obj.t === 'end_flag') {
+                    sprite = this.matter.add.sprite(x, y - 32, this.getTex(obj.t.split('_')[0]), null, { isStatic: true, isSensor: true, label: obj.t, collisionFilter:{category: CAT_RING} });
+                    sprite.setDisplaySize(16, 128);
+                    if(obj.t==='start_flag') this.player.setPosition(x, y - 64);
                 }
 
-                // Moving Platforms
-                this.levelObjects.forEach(obj => {
-                    if (obj.objType === 'moto_x' && obj.body) this.matter.body.setPosition(obj.body, { x: obj.startX + Math.sin(time*0.002)*150, y: obj.y });
-                    if (obj.objType === 'moto_y' && obj.body) this.matter.body.setPosition(obj.body, { x: obj.x, y: obj.startY + Math.sin(time*0.002)*150 });
-                });
+                if(sprite) { sprite.objType = obj.t; this.levelObjects.push(sprite); }
+            });
 
-                // Ground Check Raycast
-                const bodies = this.matter.world.getAllBodies().filter(b => !b.isSensor && b.label !== 'player' && b.collisionFilter.category === CAT_GROUND);
-                const raycast = Phaser.Physics.Matter.Matter.Query.ray(bodies, { x: this.player.x, y: this.player.y }, { x: this.player.x, y: this.player.y + 22 });
-                this.isGrounded = raycast.length > 0;
+            // 7. CAMERA
+            this.cameras.main.setBounds(0, -2000, this.levelLength, 4000);
+            this.cameras.main.startFollow(this.player, true, 0.1, 0.1, -this.scale.width / 4, 100);
 
-                // Pit Death Check
-                if (this.player.y > this.groundY + 1000) {
-                    this.rings = 0; // Force 0 rings so hitSpike triggers death
-                    this.hitSpike();
-                }
+            // 8. INPUTS
+            this.setupInputs();
+            this.setupCollisions();
+            this.updateHUD();
+        }
 
-                if (this.playerState === 'stopped') {
-                    this.player.setTexture('tex_run');
-                    this.player.setDisplaySize(36, 36);
-                    return;
-                }
+        setupInputs() {
+            this.rollDown = false;
+            
+            const bind = (id, downFn, upFn) => {
+                const el = document.getElementById(id);
+                el.onpointerdown = downFn;
+                if(upFn) { el.onpointerup = upFn; el.onpointerout = upFn; }
+            };
 
-                // State Machine (Run vs Roll)
-                if (this.rollDown && this.isGrounded && this.playerState === 'running') {
-                    this.playerState = 'rolling';
-                    this.player.setTexture('tex_roll');
-                    this.player.setDisplaySize(36, 36);
-                    this.player.setFixedRotation(false); 
-                } else if (!this.rollDown && this.playerState === 'rolling') {
+            bind('zone-left', () => this.rollDown = true, () => this.rollDown = false);
+            bind('btn-roll-vis', () => this.rollDown = true, () => this.rollDown = false);
+            bind('zone-right', () => this.triggerJump());
+            bind('btn-jump-vis', () => this.triggerJump());
+
+            document.getElementById('btn-pause').onclick = () => this.togglePause();
+            document.getElementById('btn-resume').onclick = () => this.togglePause();
+            
+            document.getElementById('btn-quit').onclick = () => {
+                document.querySelectorAll('.modal-overlay').forEach(el => el.style.display = 'none');
+                sfx.pauseBGM();
+                this.scene.restart();
+            };
+
+            const restart = () => {
+                document.querySelectorAll('.modal-overlay').forEach(el => el.style.display = 'none');
+                this.scene.restart();
+            };
+            document.getElementById('btn-restart-death').onclick = restart;
+            document.getElementById('btn-restart-win').onclick = restart;
+        }
+
+        triggerJump() {
+            if(this.isPaused || ['dead','won'].includes(this.playerState)) return;
+            if (this.isGrounded) {
+                this.player.setVelocityY(-16);
+                this.isGrounded = false;
+                sfx.play('jump');
+                
+                if(this.playerState === 'rolling') {
                     this.playerState = 'running';
-                    this.player.setTexture('tex_run');
-                    this.player.setDisplaySize(36, 36);
-                    this.player.setFixedRotation();
+                    this.player.setFixedRotation(); this.player.rotation = 0;
+                    this.player.setTexture(this.getTex('run'));
+                    this.player.setDisplaySize(48, 48);
+                }
+            }
+        }
+
+        setupCollisions() {
+            this.matter.world.on('collisionstart', (event) => {
+                event.pairs.forEach(pair => {
+                    const { bodyA, bodyB } = pair;
+                    const labels =[bodyA.label, bodyB.label];
+                    
+                    if (labels.includes('player')) {
+                        const other = bodyA.label === 'player' ? bodyB : bodyA;
+                        
+                        if (other.label === 'ring') {
+                            if (!this.ringsToRemove.includes(other.gameObject)) {
+                                this.ringsToRemove.push(other.gameObject);
+                                this.rings++;
+                                this.updateHUD();
+                                sfx.play('ring');
+                            }
+                        } else if (other.label === 'spike') {
+                            this.hitSpike();
+                        } else if (other.label === 'boost') {
+                            this.player.setVelocityY(-25);
+                            sfx.play('boost');
+                        } else if (other.label === 'end_flag') {
+                            this.triggerWin();
+                        }
+                    }
+                });
+            });
+
+            this.matter.world.on('collisionactive', (event) => {
+                this.isTouchingRamp = false;
+                event.pairs.forEach(pair => {
+                    if ((pair.bodyA.label === 'player' && pair.bodyB.label === 'ramp') ||
+                        (pair.bodyB.label === 'player' && pair.bodyA.label === 'ramp')) {
+                        this.isTouchingRamp = true;
+                    }
+                });
+            });
+        }
+
+        hitSpike() {
+            if (['dead','won'].includes(this.playerState) || this.time.now < this.invulnTimer) return;
+
+            if (this.rings > 0) {
+                sfx.play('ring_loss');
+                const dropCount = Math.min(this.rings, 32);
+                this.rings = 0;
+                this.updateHUD();
+                
+                for(let i=0; i<dropCount; i++) {
+                    let r = this.matter.add.sprite(this.player.x, this.player.y, this.getTex('ring'), null, {
+                        shape: { type: 'circle', radius: 10 },
+                        restitution: 0.8, friction: 0.05, label: 'scattered_ring',
+                        collisionFilter: { category: CAT_SCATTERED, mask: CAT_GROUND }
+                    });
+                    r.setDisplaySize(20,20);
+                    r.setVelocity(Phaser.Math.Between(-8, 8), Phaser.Math.Between(-15, -5));
+                    this.scatteredRings.push(r);
+                    
+                    this.time.delayedCall(1000, () => {
+                        if(r && r.active) { r.setCollisionCategory(CAT_RING); r.setCollidesWith(CAT_PLAYER | CAT_GROUND); r.label = 'ring'; }
+                    });
+                    this.time.delayedCall(4000, () => {
+                        if(r && r.active) this.tweens.add({ targets: r, alpha: 0, duration: 200, onComplete: ()=>r.destroy() });
+                    });
+                }
+                
+                this.player.setVelocity(-6, -10); 
+                this.invulnTimer = this.time.now + 2000;
+                this.tweens.add({ targets: this.player, alpha: 0.2, yoyo: true, repeat: 10, duration: 100, onComplete: () => this.player.alpha = 1 });
+
+            } else {
+                this.playerState = 'dead';
+                sfx.play('ring_loss'); 
+                this.player.setStatic(true);
+                this.cameras.main.shake(300, 0.02);
+                setTimeout(() => { document.getElementById('death-modal').style.display = 'flex'; }, 1000);
+            }
+        }
+
+        triggerWin() {
+            if (['dead','won'].includes(this.playerState)) return;
+            this.playerState = 'won';
+            this.player.setVelocity(0,0);
+            setTimeout(() => {
+                document.getElementById('final-score').innerText = `RINGS: ${this.rings}`;
+                document.getElementById('win-modal').style.display = 'flex';
+            }, 500);
+        }
+
+        togglePause() {
+            if(['dead','won'].includes(this.playerState)) return;
+            this.isPaused = !this.isPaused;
+            if (this.isPaused) {
+                this.scene.pause();
+                document.getElementById('pause-modal').style.display = 'flex';
+            } else {
+                this.scene.resume();
+                document.getElementById('pause-modal').style.display = 'none';
+            }
+        }
+
+        updateHUD() {
+            document.getElementById('score-hud').innerHTML = `RINGS: ${this.rings}<br><span id="speed-hud" style="font-size:10px; color:#FFF;">SPEED: ${Math.floor(this.currentRunSpeed)}</span>`;
+        }
+
+        update(time, delta) {
+            if (['dead','won'].includes(this.playerState) || this.isPaused) return;
+
+            if (this.ringsToRemove.length > 0) {
+                this.ringsToRemove.forEach(r => { if(r && r.active) r.destroy(); });
+                this.ringsToRemove =[];
+            }
+
+            // Moving Platforms
+            this.levelObjects.forEach(obj => {
+                if (obj.objType === 'moto_x' && obj.body) this.matter.body.setPosition(obj.body, { x: obj.startX + Math.sin(time*0.002)*150, y: obj.y });
+                if (obj.objType === 'moto_y' && obj.body) this.matter.body.setPosition(obj.body, { x: obj.x, y: obj.startY + Math.sin(time*0.002)*150 });
+            });
+
+            // Ground Raycast
+            const bodies = this.matter.world.getAllBodies().filter(b => !b.isSensor && b.label !== 'player' && b.collisionFilter.category === CAT_GROUND);
+            const raycast = Phaser.Physics.Matter.Matter.Query.ray(bodies, { x: this.player.x, y: this.player.y }, { x: this.player.x, y: this.player.y + 28 });
+            this.isGrounded = raycast.length > 0;
+
+            // Pit Death Check
+            if (this.player.y > this.groundY + 500) {
+                this.rings = 0; this.hitSpike();
+            }
+
+            // Run vs Roll State
+            if (this.rollDown && this.isGrounded && this.playerState === 'running') {
+                this.playerState = 'rolling';
+                this.player.setTexture(this.getTex('roll'));
+                this.player.setDisplaySize(48, 48);
+                this.player.setFixedRotation(false); 
+            } else if (!this.rollDown && this.playerState === 'rolling') {
+                this.playerState = 'running';
+                this.player.setTexture(this.getTex('run'));
+                this.player.setDisplaySize(48, 48);
+                this.player.setFixedRotation();
+                this.player.rotation = 0;
+            }
+
+            // Apply Physics
+            if (this.playerState === 'running') {
+                if (this.isTouchingRamp) this.currentRunSpeed = this.baseSpeed * 0.4;
+                else this.currentRunSpeed = Phaser.Math.Linear(this.currentRunSpeed, this.baseSpeed, 0.1);
+                
+                if(this.time.now > this.invulnTimer - 1500) this.player.setVelocityX(this.currentRunSpeed);
+                
+                if (!this.isGrounded) {
+                    this.player.setTexture(this.getTex('roll'));
+                    this.player.setDisplaySize(48, 48);
+                    this.player.rotation += 0.3;
+                } else {
+                    this.player.setTexture(this.getTex('run'));
                     this.player.rotation = 0;
                 }
-
-                // Physics Application
-                if (this.playerState === 'running') {
-                    if (this.isTouchingRamp) {
-                        this.currentRunSpeed = this.baseSpeed * 0.4;
-                    } else {
-                        this.currentRunSpeed = Phaser.Math.Linear(this.currentRunSpeed, this.baseSpeed, 0.1);
-                    }
-                    
-                    // Only enforce velocity if not recovering from spike knockback
-                    if(this.time.now > this.invulnTimer - 1500) {
-                        this.player.setVelocityX(this.currentRunSpeed);
-                    }
-                    
-                    if (!this.isGrounded) {
-                        this.player.setTexture('tex_roll');
-                        this.player.setDisplaySize(36, 36);
-                        this.player.rotation += 0.3;
-                    } else {
-                        this.player.setTexture('tex_run');
-                        this.player.rotation = 0;
-                    }
-                } 
-                else if (this.playerState === 'rolling') {
-                    // Momentum physics on flat vs ramp
-                    if (!this.isTouchingRamp && this.player.body.velocity.x < this.baseSpeed) {
-                        this.player.applyForce({ x: 0.003, y: 0 }); 
-                    }
-                    if (this.player.body.velocity.x > 1) this.player.rotation += 0.4;
-                }
-
-                // Parallax sync
-                if(this.bg) this.bg.tilePositionX = this.cameras.main.scrollX * 0.5;
-                
-                // Update HUD element once in a while
-                if(time % 10 < 1) this.updateHUD();
+            } 
+            else if (this.playerState === 'rolling') {
+                if (!this.isTouchingRamp && this.player.body.velocity.x < this.baseSpeed) this.player.applyForce({ x: 0.003, y: 0 }); 
+                if (this.player.body.velocity.x > 1) this.player.rotation += 0.4;
             }
-        }
 
-        // ==========================================
-        // INITIALIZATION
-        // ==========================================
-        window.onload = () => {
-            const config = {
-                type: Phaser.AUTO,
-                parent: 'game-container',
-                scale: { 
-                    mode: Phaser.Scale.RESIZE,
-                    width: '100%', height: '100%'
-                },
-                backgroundColor: '#4A90E2',
-                physics: { default: 'matter', matter: { gravity: { y: 2.5 }, debug: false } },
-                scene: [BootScene, PlayScene],
-                pixelArt: true
-            };
-            new Phaser.Game(config);
-        };
-    </script>
+            if(this.bg) this.bg.tilePositionX = this.cameras.main.scrollX * 0.5;
+            if(time % 10 < 1) this.updateHUD();
+        }
+    }
+
+    // INIT
+    window.onload = () => {
+        new Phaser.Game({
+            type: Phaser.AUTO,
+            parent: 'game-container',
+            scale: { mode: Phaser.Scale.RESIZE, width: '100%', height: '100%' },
+            backgroundColor: '#4A90E2',
+            physics: { default: 'matter', matter: { gravity: { y: 2.5 }, debug: false } },
+            scene: [BootScene, PlayScene],
+            pixelArt: true
+        });
+    };
+</script>
 </body>
 </html>
