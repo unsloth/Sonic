@@ -3,273 +3,123 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Sonic Clone - Fixed Landscape Engine</title>
+    <title>Sonic Clone - Landscape View</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
-        * { 
-            box-sizing: border-box; 
-            margin: 0; 
-            padding: 0; 
-            user-select: none; 
-            -webkit-user-select: none; 
-            touch-action: none; 
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; touch-action: none; }
         
+        /* Forces centering for the letterboxed landscape wrapper */
         html, body { 
-            width: 100%; 
-            height: 100%; 
-            overflow: hidden; 
-            background: #000; 
+            width: 100%; height: 100%; overflow: hidden; background: #000; 
             font-family: 'Press Start 2P', monospace; 
+            display: flex; align-items: center; justify-content: center;
         }
 
-        /* LANDSCAPE CONTAINER - No rotation, just forced aspect ratio */
-        #game-frame {
-            position: relative;
-            width: 100vw;
-            height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: #000;
-            overflow: hidden;
-        }
-
-        /* Inner game container with landscape aspect ratio */
+        /* Enforce a strict 16:9 landscape layout, regardless of device orientation */
         #game-wrapper {
             position: relative;
-            width: 100%;
-            height: 100%;
-            max-width: 177.78vh; /* 16:9 aspect ratio (100vh * 16/9) */
-            max-height: 56.25vw; /* 9:16 aspect ratio (100vw * 9/16) */
             background: #4A90E2;
             overflow: hidden;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
         }
-
-        @media (min-aspect-ratio: 16/9) {
-            #game-wrapper {
-                width: auto;
-                height: 100%;
-            }
-        }
-
+        
+        /* Fit to width for portrait screens */
         @media (max-aspect-ratio: 16/9) {
-            #game-wrapper {
-                width: 100%;
-                height: auto;
-            }
+            #game-wrapper { width: 100vw; height: 56.25vw; }
+        }
+        /* Fit to height for ultrawide screens */
+        @media (min-aspect-ratio: 16/9) {
+            #game-wrapper { height: 100vh; width: 177.78vh; }
         }
 
-        #game-container { 
-            position: absolute; 
-            inset: 0; 
-            z-index: 1; 
-        }
-        
-        #dom-layer { 
-            position: absolute; 
-            inset: 0; 
-            z-index: 2; 
-            pointer-events: none; 
-            overflow: hidden; 
-        }
-        
-        #touch-layer { 
-            position: absolute; 
-            inset: 0; 
-            z-index: 5; 
-            display: flex; 
-        }
-        
-        .touch-zone { 
-            flex: 1; 
-            height: 100%; 
-            pointer-events: auto; 
-        }
+        #game-container { position: absolute; inset: 0; z-index: 1; }
+        #dom-layer { position: absolute; inset: 0; z-index: 2; pointer-events: none; overflow: hidden; }
+        #touch-layer { position: absolute; inset: 0; z-index: 5; display: flex; }
+        .touch-zone { flex: 1; height: 100%; pointer-events: auto; }
 
-        /* UI Layer with 60px padding from edges */
+        /* UI Layer with requested 60px padding around the edges */
         #ui-layer {
-            position: absolute;
-            top: 60px;
-            bottom: 60px;
-            left: 60px;
-            right: 60px;
-            z-index: 10;
-            pointer-events: none;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
+            position: absolute; inset: 0; z-index: 10; pointer-events: none;
+            padding: 60px; display: flex; flex-direction: column; justify-content: space-between;
         }
-        
-        .hud-top { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: flex-start; 
-        }
-        
-        .hud-bottom { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: flex-end; 
-        }
+        .hud-top { display: flex; justify-content: space-between; align-items: flex-start; }
+        .hud-bottom { display: flex; justify-content: space-between; align-items: flex-end; }
 
-        #score-hud { 
-            color: #FFD700; 
-            text-shadow: 2px 2px 0 #002D72, -2px -2px 0 #000; 
-            font-size: 14px; 
-            line-height: 1.5; 
-            pointer-events: auto; 
-        }
+        #score-hud { color: #FFD700; text-shadow: 2px 2px 0 #002D72, -2px -2px 0 #000; font-size: 14px; line-height: 1.5; pointer-events: auto; }
 
         .pixel-btn {
-            background: #002D72; 
-            border: 3px solid #fff; 
-            color: #fff; 
-            font-family: inherit;
-            box-shadow: inset -3px -3px 0 rgba(0,0,0,0.4), 4px 4px 0 #000; 
-            font-size: 12px; 
-            padding: 10px 16px; 
-            cursor: pointer;
-            text-transform: uppercase; 
-            transition: transform 0.1s; 
-            outline: none; 
-            pointer-events: auto;
+            background: #002D72; border: 3px solid #fff; color: #fff; font-family: inherit;
+            box-shadow: inset -3px -3px 0 rgba(0,0,0,0.4), 4px 4px 0 #000; font-size: 12px; padding: 10px 16px; cursor: pointer;
+            text-transform: uppercase; transition: transform 0.1s; outline: none; pointer-events: auto;
         }
-        
-        .pixel-btn:active { 
-            transform: translate(4px, 4px); 
-            box-shadow: none; 
-            background: #FFD700; 
-            color: #002D72; 
-        }
-        
+        .pixel-btn:active { transform: translate(4px, 4px); box-shadow: none; background: #FFD700; color: #002D72; }
         .btn-red { background: #E3000F; }
 
         .action-btn {
-            width: 64px; 
-            height: 64px; 
-            border-radius: 50%; 
-            background: rgba(0, 45, 114, 0.85);
-            border: 3px solid rgba(255,255,255,0.9); 
-            color: #fff; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center;
-            font-size: 10px; 
-            box-shadow: 0 5px 0 rgba(0,0,0,0.5); 
-            font-family: inherit; 
-            cursor: pointer; 
-            pointer-events: auto;
+            width: 56px; height: 56px; border-radius: 50%; background: rgba(0, 45, 114, 0.85);
+            border: 3px solid rgba(255,255,255,0.9); color: #fff; display: flex; align-items: center; justify-content: center;
+            font-size: 10px; box-shadow: 0 5px 0 rgba(0,0,0,0.5); font-family: inherit; cursor: pointer; pointer-events: auto;
         }
-        
-        .action-btn:active { 
-            transform: translateY(5px); 
-            box-shadow: none; 
-            background: rgba(255, 215, 0, 0.9); 
-            color: #000; 
-        }
+        .action-btn:active { transform: translateY(5px); box-shadow: none; background: rgba(255, 215, 0, 0.9); color: #000; }
 
         /* Modals */
         .modal-overlay {
-            position: absolute;
-            inset: 0;
-            background: rgba(0,0,0,0.9);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 100;
-            pointer-events: auto;
+            position: absolute; inset: 0; background: rgba(0,0,0,0.88);
+            display: none; align-items: center; justify-content: center; z-index: 100; pointer-events: auto;
         }
-        
         .retro-box {
-            background: #002D72; 
-            border: 4px solid #fff; 
-            box-shadow: inset -4px -4px 0 rgba(0,0,0,0.4), 8px 8px 0 #000;
-            padding: 30px; 
-            display: flex; 
-            flex-direction: column; 
-            gap: 20px; 
-            align-items: center; 
-            text-align: center; 
-            min-width: 280px;
+            background: #002D72; border: 4px solid #fff; box-shadow: inset -4px -4px 0 rgba(0,0,0,0.4), 8px 8px 0 #000;
+            padding: 30px; display: flex; flex-direction: column; gap: 20px; align-items: center; text-align: center; min-width: 280px;
         }
-        
-        .modal-title { 
-            color: #FFD700; 
-            text-shadow: 3px 3px 0 #000; 
-            font-size: 18px; 
-            line-height: 1.5;
-            margin-bottom: 10px;
-        }
-        
-        .game-gif { 
-            position: absolute; 
-            top: 0; 
-            left: 0; 
-            will-change: transform; 
-            object-fit: contain; 
-            image-rendering: pixelated;
-            pointer-events: none;
-        }
-
-        .damage-flash {
-            animation: damage-blink 0.1s 6;
-        }
-
-        @keyframes damage-blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
-        }
+        .modal-title { color: #FFD700; text-shadow: 3px 3px 0 #000; font-size: 18px; line-height: 1.5; margin-bottom: 10px;}
+        .game-gif { position: absolute; top: 0; left: 0; will-change: transform; object-fit: contain; image-rendering: pixelated; }
     </style>
 </head>
 <body>
 
-<div id="game-frame">
-    <div id="game-wrapper">
-        <div id="game-container"></div>
-        <div id="dom-layer"></div>
+<div id="game-wrapper">
+    <div id="game-container"></div>
+    <div id="dom-layer"></div>
 
-        <div id="touch-layer">
-            <div class="touch-zone" id="zone-left"></div>
-            <div class="touch-zone" id="zone-right"></div>
+    <div id="touch-layer">
+        <div class="touch-zone" id="zone-left"></div>
+        <div class="touch-zone" id="zone-right"></div>
+    </div>
+
+    <div id="ui-layer">
+        <div class="hud-top">
+            <div id="score-hud">RINGS: 0<br><span id="speed-hud" style="font-size:10px; color:#FFF;">SPEED: 0</span></div>
+            <button class="pixel-btn" id="btn-pause">|| PAUSE</button>
         </div>
-
-        <div id="ui-layer">
-            <div class="hud-top">
-                <div id="score-hud">RINGS: 0<br><span id="speed-hud" style="font-size:10px; color:#FFF;">SPEED: 0</span></div>
-                <button class="pixel-btn" id="btn-pause">|| PAUSE</button>
-            </div>
-            <div class="hud-bottom">
-                <button class="action-btn" id="btn-roll-vis">ROLL</button>
-                <button class="action-btn" id="btn-jump-vis">JUMP</button>
-            </div>
+        <div class="hud-bottom">
+            <button class="action-btn" id="btn-roll-vis">ROLL</button>
+            <button class="action-btn" id="btn-jump-vis">JUMP</button>
         </div>
+    </div>
 
-        <div id="pause-modal" class="modal-overlay">
-            <div class="retro-box">
-                <h2 class="modal-title">PAUSED</h2>
-                <button class="pixel-btn" id="btn-resume" style="width:100%;">RESUME</button>
-                <button class="pixel-btn btn-red" id="btn-quit" style="width:100%;">QUIT</button>
-            </div>
+    <div id="pause-modal" class="modal-overlay">
+        <div class="retro-box">
+            <h2 class="modal-title">PAUSED</h2>
+            <button class="pixel-btn" id="btn-resume" style="width:100%;">RESUME</button>
+            <button class="pixel-btn btn-red" id="btn-quit" style="width:100%;">QUIT</button>
         </div>
+    </div>
 
-        <div id="death-modal" class="modal-overlay">
-            <div class="retro-box">
-                <h2 class="modal-title" style="color:#ff4c4c;">YOU DIED</h2>
-                <button class="pixel-btn" id="btn-retry" style="width:100%;">TRY AGAIN</button>
-                <button class="pixel-btn btn-red" id="btn-quit-death" style="width:100%;">QUIT</button>
-            </div>
+    <div id="death-modal" class="modal-overlay">
+        <div class="retro-box">
+            <h2 class="modal-title" style="color:#ff4c4c;">YOU DIED</h2>
+            <button class="pixel-btn" id="btn-restart-death" style="width:100%;">TRY AGAIN</button>
+            <button class="pixel-btn btn-red" id="btn-quit-death" style="width:100%;">QUIT</button>
         </div>
+    </div>
 
-        <div id="win-modal" class="modal-overlay">
-            <div class="retro-box">
-                <h2 class="modal-title" style="color:#00FF00;">ZONE CLEARED</h2>
-                <p id="final-score" style="color:#fff; font-size:12px;">RINGS: 0</p>
-                <button class="pixel-btn" id="btn-play-again" style="width:100%;">PLAY AGAIN</button>
-                <button class="pixel-btn btn-red" id="btn-quit-win" style="width:100%;">QUIT</button>
-            </div>
+    <div id="win-modal" class="modal-overlay">
+        <div class="retro-box">
+            <h2 class="modal-title" style="color:#00FF00;">ZONE CLEARED</h2>
+            <p id="final-score" style="color:#fff; font-size:12px;">RINGS: 0</p>
+            <button class="pixel-btn" id="btn-restart-win" style="width:100%;">PLAY AGAIN</button>
         </div>
     </div>
 </div>
@@ -298,73 +148,41 @@
         constructor() {
             try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
             this.bgm = new Audio('https://cdn.jsdelivr.net/gh/unsloth/sonic@main/sound/sonic.mp3');
-            this.bgm.loop = true; 
-            this.bgm.volume = 0.3;
+            this.bgm.loop = true; this.bgm.volume = 0.3;
             this.started = false;
         }
-        playBGM() { 
-            if(!this.started) { 
-                this.bgm.play().catch(()=>{}); 
-                this.started = true; 
-            } 
-        }
-        pauseBGM() { 
-            this.bgm.pause(); 
-            this.started = false; 
-        }
+        playBGM() { if(!this.started){ this.bgm.play().catch(()=>{}); this.started=true; } }
+        pauseBGM() { this.bgm.pause(); this.started=false; }
         play(type) {
             if(!this.ctx) return;
             if(this.ctx.state === 'suspended') this.ctx.resume();
             const t = this.ctx.currentTime;
-            const osc = this.ctx.createOscillator();
-            const gain = this.ctx.createGain();
-            osc.connect(gain);
-            gain.connect(this.ctx.destination);
-            
+            const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+            osc.connect(gain); gain.connect(this.ctx.destination);
             if (type === 'ring') {
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(1200, t);
-                osc.frequency.exponentialRampToValueAtTime(2200, t + 0.1);
-                gain.gain.setValueAtTime(0.3, t);
-                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
-                osc.start(t);
-                osc.stop(t + 0.3);
+                osc.type = 'sine'; osc.frequency.setValueAtTime(1200, t); osc.frequency.exponentialRampToValueAtTime(2200, t + 0.1);
+                gain.gain.setValueAtTime(0.3, t); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+                osc.start(t); osc.stop(t + 0.3);
             } else if (type === 'jump') {
-                osc.type = 'square';
-                osc.frequency.setValueAtTime(150, t);
-                osc.frequency.exponentialRampToValueAtTime(300, t + 0.2);
-                gain.gain.setValueAtTime(0.1, t);
-                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
-                osc.start(t);
-                osc.stop(t + 0.2);
+                osc.type = 'square'; osc.frequency.setValueAtTime(150, t); osc.frequency.exponentialRampToValueAtTime(300, t + 0.2);
+                gain.gain.setValueAtTime(0.1, t); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+                osc.start(t); osc.stop(t + 0.2);
             } else if (type === 'ring_loss') {
-                osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(400, t);
-                osc.frequency.exponentialRampToValueAtTime(50, t + 0.5);
-                gain.gain.setValueAtTime(0.4, t);
-                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
-                osc.start(t);
-                osc.stop(t + 0.5);
-            } else if (type === 'death') {
-                osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(200, t);
-                osc.frequency.exponentialRampToValueAtTime(50, t + 1.0);
-                gain.gain.setValueAtTime(0.5, t);
-                gain.gain.exponentialRampToValueAtTime(0.01, t + 1.0);
-                osc.start(t);
-                osc.stop(t + 1.0);
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(400, t); osc.frequency.exponentialRampToValueAtTime(50, t + 0.5);
+                gain.gain.setValueAtTime(0.4, t); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+                osc.start(t); osc.stop(t + 0.5);
             }
         }
     }
     const sfx = new AudioEngine();
 
     // ==========================================
-    // CONSTANTS
+    // CONSTANTS & HELPERS
     // ==========================================
     const TILE_SIZE = 64;
     const CAT_PLAYER = 0x0001, CAT_GROUND = 0x0002, CAT_RING = 0x0004, CAT_SCATTERED = 0x0008;
 
-    const LEVEL_GRID = [
+    const LEVEL_GRID =[
         { t: 'start_flag', cx: 2, cy: 0 },
         { t: 'ring', cx: 6, cy: 1 }, { t: 'ring', cx: 7, cy: 1 }, { t: 'ring', cx: 8, cy: 1 },
         { t: 'block', cx: 12, cy: 1 }, { t: 'ring', cx: 12, cy: 3 },
@@ -381,119 +199,38 @@
         { t: 'end_flag', cx: 65, cy: 0 }
     ];
 
-    // ==========================================
-    // DOM SYNCHRONIZER
-    // ==========================================
     const domLayer = document.getElementById('dom-layer');
-    
     function createDOMElement(src, w, h) {
         const img = document.createElement('img');
-        img.src = src;
-        img.className = 'game-gif';
-        img.style.width = w + 'px';
-        img.style.height = h + 'px';
+        img.src = src; img.className = 'game-gif';
+        img.style.width = w + 'px'; img.style.height = h + 'px';
         img.draggable = false;
         domLayer.appendChild(img);
         return img;
     }
 
-    // ==========================================
-    // PIXEL ART GENERATOR
-    // ==========================================
+    // Generator logic omitted for brevity, keeping only essential graphics calls (from your code)
     function generatePixelArt(scene) {
         const g = scene.make.graphics({x:0, y:0, add:false});
-
-        // Start Flag (Green Checkered)
-        g.clear();
-        g.fillStyle(0x444444);
-        g.fillRect(14, 0, 4, 128);
-        g.fillStyle(0xAAAAAA);
-        g.fillRect(18, 0, 4, 128);
-        g.fillStyle(0x888888);
-        g.fillRect(22, 0, 2, 128);
-        for(let y=0; y<4; y++) {
-            for(let x=0; x<4; x++) {
-                g.fillStyle((x+y)%2===0 ? 0x00FF00 : 0x006600);
-                g.fillRect(26 + x*9, 8 + y*9, 9, 9);
-            }
-        }
+        g.clear(); g.fillStyle(0x444444); g.fillRect(14, 0, 4, 128); g.fillStyle(0xAAAAAA); g.fillRect(18, 0, 4, 128);
+        g.fillStyle(0x888888); g.fillRect(22, 0, 2, 128);
+        for(let y=0; y<4; y++) for(let x=0; x<4; x++) { g.fillStyle((x+y)%2===0 ? 0x00FF00 : 0x006600); g.fillRect(26 + x*9, 8 + y*9, 9, 9); }
         g.generateTexture('tex_start', 64, 128);
 
-        // End Flag (Checkered)
-        g.clear();
-        g.fillStyle(0x444444);
-        g.fillRect(14, 0, 4, 128);
-        g.fillStyle(0xAAAAAA);
-        g.fillRect(18, 0, 4, 128);
-        for(let y=0; y<4; y++) {
-            for(let x=0; x<4; x++) {
-                g.fillStyle((x+y)%2===0 ? 0xFFFFFF : 0x333333);
-                g.fillRect(26 + x*9, 8 + y*9, 9, 9);
-            }
-        }
+        g.clear(); g.fillStyle(0x444444); g.fillRect(14, 0, 4, 128); g.fillStyle(0xAAAAAA); g.fillRect(18, 0, 4, 128);
+        for(let y=0; y<4; y++) for(let x=0; x<4; x++) { g.fillStyle((x+y)%2===0 ? 0xFFFFFF : 0x333333); g.fillRect(26 + x*9, 8 + y*9, 9, 9); }
         g.generateTexture('tex_end', 64, 128);
 
-        // Wood Platform
-        g.clear();
-        g.fillStyle(0x5C3317);
-        g.fillRect(0, 0, 128, 16);
-        g.fillStyle(0x8B4513);
-        g.fillRect(1, 1, 126, 14);
-        for(let i=0; i<8; i++) {
-            g.fillStyle(0xA0522D);
-            g.fillRect(i*16+2, 2, 13, 6);
-            g.fillStyle(0x8B4513);
-            g.fillRect(i*16+2, 9, 13, 5);
-            g.fillStyle(0x333333);
-            g.fillRect(i*16+6, 4, 3, 3);
-            g.fillRect(i*16+6, 10, 3, 3);
-        }
+        g.clear(); g.fillStyle(0x5C3317); g.fillRect(0, 0, 128, 16); g.fillStyle(0x8B4513); g.fillRect(1, 1, 126, 14);
+        for(let i=0; i<8; i++) { g.fillStyle(0xA0522D); g.fillRect(i*16+2, 2, 13, 6); g.fillStyle(0x8B4513); g.fillRect(i*16+2, 9, 13, 5); g.fillStyle(0x333333); g.fillRect(i*16+6, 4, 3, 3); g.fillRect(i*16+6, 10, 3, 3); }
         g.generateTexture('tex_platform', 128, 16);
 
-        // Motos X
-        g.clear();
-        for(let i=0; i<16; i++) {
-            g.fillStyle(i%2===0 ? 0xFFD700 : 0x222222);
-            g.fillRect(i*8, 0, 8, 16);
-        }
-        g.lineStyle(2, 0x000000, 0.5);
-        g.strokeRect(0,0,128,16);
-        g.generateTexture('tex_moto_x', 128, 16);
+        g.clear(); for(let i=0; i<16; i++) { g.fillStyle(i%2===0 ? 0xFFD700 : 0x222222); g.fillRect(i*8, 0, 8, 16); } g.lineStyle(2, 0x000000, 0.5); g.strokeRect(0,0,128,16); g.generateTexture('tex_moto_x', 128, 16);
+        g.clear(); for(let i=0; i<16; i++) { g.fillStyle(i%2===0 ? 0xFF4500 : 0x222222); g.fillRect(i*8, 0, 8, 16); } g.lineStyle(2, 0x000000, 0.5); g.strokeRect(0,0,128,16); g.generateTexture('tex_moto_y', 128, 16);
 
-        // Motos Y
-        g.clear();
-        for(let i=0; i<16; i++) {
-            g.fillStyle(i%2===0 ? 0xFF4500 : 0x222222);
-            g.fillRect(i*8, 0, 8, 16);
-        }
-        g.lineStyle(2, 0x000000, 0.5);
-        g.strokeRect(0,0,128,16);
-        g.generateTexture('tex_moto_y', 128, 16);
-
-        // Ramp
-        g.clear();
-        g.fillStyle(0x5D3A1A);
-        g.beginPath();
-        g.moveTo(0, 64);
-        g.lineTo(128, 64);
-        g.lineTo(128, 0);
-        g.closePath();
-        g.fillPath();
-        g.fillStyle(0x008800);
-        g.beginPath();
-        g.moveTo(0, 64);
-        g.lineTo(128, 64);
-        g.lineTo(128, 6);
-        g.closePath();
-        g.fillPath();
-        g.fillStyle(0x00CC00);
-        g.beginPath();
-        g.moveTo(0, 64);
-        g.lineTo(128, 64);
-        g.lineTo(128, 12);
-        g.closePath();
-        g.fillPath();
-        g.generateTexture('tex_ramp', 128, 64);
+        g.clear(); g.fillStyle(0x5D3A1A); g.beginPath(); g.moveTo(0, 64); g.lineTo(128, 64); g.lineTo(128, 0); g.closePath(); g.fillPath();
+        g.fillStyle(0x008800); g.beginPath(); g.moveTo(0, 64); g.lineTo(128, 64); g.lineTo(128, 6); g.closePath(); g.fillPath();
+        g.fillStyle(0x00CC00); g.beginPath(); g.moveTo(0, 64); g.lineTo(128, 64); g.lineTo(128, 12); g.closePath(); g.fillPath(); g.generateTexture('tex_ramp', 128, 64);
     }
 
     // ==========================================
@@ -501,7 +238,6 @@
     // ==========================================
     class BootScene extends Phaser.Scene {
         constructor() { super('BootScene'); }
-        
         preload() {
             this.load.image('bg', ASSETS.bg);
             this.load.image('grass', ASSETS.grass);
@@ -509,11 +245,7 @@
             this.load.image('spike', ASSETS.spike);
             this.load.image('boost', ASSETS.boost);
         }
-        
-        create() {
-            generatePixelArt(this);
-            this.scene.start('PlayScene');
-        }
+        create() { generatePixelArt(this); this.scene.start('PlayScene'); }
     }
 
     class PlayScene extends Phaser.Scene {
@@ -529,7 +261,6 @@
             this.endFlagX = 999999;
             this.rollDown = false;
             this.isGrounded = false;
-            this.isDead = false;
         }
 
         create() {
@@ -538,44 +269,29 @@
 
             this.matter.world.setGravity(0, 2.2);
 
-            // Backgrounds
-            this.bg = this.add.tileSprite(this.scale.width/2, this.scale.height/2, this.scale.width, this.scale.height, 'bg')
-                .setScrollFactor(0).setDepth(-10).setScale(2);
+            this.bg = this.add.tileSprite(this.scale.width/2, this.scale.height/2, this.scale.width, this.scale.height, 'bg').setScrollFactor(0).setDepth(-10).setScale(2);
 
-            // Ground
             const groundWidth = this.levelLength + 2000;
-            this.grass = this.add.tileSprite(groundWidth/2, this.groundY + 16, groundWidth, 32, 'grass')
-                .setDepth(-4).setScrollFactor(1);
-            this.dirt = this.add.tileSprite(groundWidth/2, this.groundY + 116, groundWidth, 200, 'dirt')
-                .setDepth(-5).setScrollFactor(1);
+            this.grass = this.add.tileSprite(groundWidth/2, this.groundY + 16, groundWidth, 32, 'grass').setDepth(-4).setScrollFactor(1);
+            this.dirt = this.add.tileSprite(groundWidth/2, this.groundY + 116, groundWidth, 200, 'dirt').setDepth(-5).setScrollFactor(1);
 
             this.groundBody = this.matter.add.rectangle(groundWidth/2, this.groundY + 32, groundWidth, 64, {
-                isStatic: true, 
-                friction: 0.6, 
-                restitution: 0, 
-                label: 'ground', 
-                collisionFilter: { category: CAT_GROUND }
+                isStatic: true, friction: 0.6, restitution: 0, label: 'ground', collisionFilter: { category: CAT_GROUND }
             });
 
-            // Player
             const startX = TILE_SIZE * 2;
             const startY = this.groundY - 60;
-            
             this.playerBody = this.matter.add.circle(startX, startY, 22, {
-                friction: 0.001, 
-                restitution: 0, 
-                label: 'player', 
-                inertia: Infinity,
+                friction: 0.001, restitution: 0, label: 'player', inertia: Infinity,
                 collisionFilter: { category: CAT_PLAYER, mask: CAT_GROUND | CAT_RING }
             });
 
             this.playerDOM = createDOMElement(ASSETS.waiting, 48, 48);
 
-            // Level Objects
             this.levelObjects = [];
-            this.activeRingDoms = [];
+            this.activeRingDoms =[];
             this.ringsToRemove = [];
-            this.scatteredRings = [];
+            this.scatteredRings =[];
 
             LEVEL_GRID.forEach(obj => {
                 const x = obj.cx * TILE_SIZE;
@@ -583,82 +299,42 @@
                 let sprite;
 
                 if (obj.t === 'ring') {
-                    let rBody = this.matter.add.rectangle(x, y, 28, 28, {
-                        isStatic: true, 
-                        isSensor: true, 
-                        label: 'ring', 
-                        collisionFilter: { category: CAT_RING }
-                    });
+                    let rBody = this.matter.add.rectangle(x, y, 28, 28, { isStatic: true, isSensor: true, label: 'ring', collisionFilter: { category: CAT_RING } });
                     let rDom = createDOMElement(ASSETS.ring, 32, 32);
                     this.activeRingDoms.push({ body: rBody, dom: rDom });
                 }
                 else if (obj.t === 'block') {
                     sprite = this.add.tileSprite(x, y, 64, 64, 'grass').setDepth(-3);
-                    this.matter.add.rectangle(x, y, 64, 64, {
-                        isStatic: true, 
-                        label: 'block', 
-                        collisionFilter: { category: CAT_GROUND }
-                    });
+                    this.matter.add.rectangle(x, y, 64, 64, { isStatic: true, label: 'block', collisionFilter: { category: CAT_GROUND } });
                 }
                 else if (obj.t === 'spike') {
-                    sprite = this.matter.add.sprite(x, y + 5, 'spike', null, {
-                        isStatic: true, 
-                        isSensor: true, 
-                        label: 'spike', 
-                        collisionFilter: { category: CAT_RING }
-                    });
+                    sprite = this.matter.add.sprite(x, y + 5, 'spike', null, { isStatic: true, isSensor: true, label: 'spike', collisionFilter: { category: CAT_RING } });
                     sprite.setDisplaySize(64, 54);
                 }
                 else if (obj.t === 'boost') {
-                    sprite = this.matter.add.sprite(x, y + 11, 'boost', null, {
-                        isStatic: true, 
-                        isSensor: true, 
-                        label: 'boost', 
-                        collisionFilter: { category: CAT_RING }
-                    });
+                    sprite = this.matter.add.sprite(x, y + 11, 'boost', null, { isStatic: true, isSensor: true, label: 'boost', collisionFilter: { category: CAT_RING } });
                     sprite.setDisplaySize(64, 41);
                 }
                 else if (obj.t === 'ramp') {
                     sprite = this.add.image(x, y, 'tex_ramp').setOrigin(0.5).setDepth(-3);
-                    this.matter.add.rectangle(x + 8, y + 8, 140, 18, {
-                        isStatic: true, 
-                        angle: -0.464,
-                        label: 'ramp', 
-                        collisionFilter: { category: CAT_GROUND }
-                    });
+                    this.matter.add.rectangle(x + 8, y + 8, 140, 18, { isStatic: true, angle: -0.464, label: 'ramp', collisionFilter: { category: CAT_GROUND } });
                 }
                 else if (obj.t === 'platform' || obj.t === 'moto_x' || obj.t === 'moto_y') {
-                    sprite = this.matter.add.sprite(x, y, 'tex_' + obj.t, null, {
-                        isStatic: true, 
-                        label: obj.t, 
-                        collisionFilter: { category: CAT_GROUND }
-                    });
-                    sprite.setDisplaySize(128, 16);
-                    sprite.startX = x;
-                    sprite.startY = y;
+                    sprite = this.matter.add.sprite(x, y, 'tex_' + obj.t, null, { isStatic: true, label: obj.t, collisionFilter: { category: CAT_GROUND } });
+                    sprite.setDisplaySize(128, 16); sprite.startX = x; sprite.startY = y;
                 }
                 else if (obj.t === 'start_flag' || obj.t === 'end_flag') {
                     sprite = this.add.image(x, y - 32, 'tex_' + obj.t.split('_')[0]).setOrigin(0.5).setDepth(-2);
-                    this.matter.add.rectangle(x, y - 32, 48, 120, {
-                        isStatic: true, 
-                        isSensor: true, 
-                        label: obj.t, 
-                        collisionFilter: { category: CAT_RING }
-                    });
+                    this.matter.add.rectangle(x, y - 32, 48, 120, { isStatic: true, isSensor: true, label: obj.t, collisionFilter: { category: CAT_RING } });
                     if(obj.t === 'start_flag') {
                         this.matter.body.setPosition(this.playerBody, { x: x, y: y - 40 });
                         this.matter.body.setVelocity(this.playerBody, { x: 0, y: 0 });
                     }
                     if(obj.t === 'end_flag') this.endFlagX = x;
                 }
-
-                if(sprite) { 
-                    sprite.objType = obj.t; 
-                    this.levelObjects.push(sprite); 
-                }
+                if(sprite) { sprite.objType = obj.t; this.levelObjects.push(sprite); }
             });
 
-            // Camera
             this.cameras.main.setBounds(0, -500, this.levelLength + 1000, this.scale.height + 1000);
             this.camTarget = this.add.zone(0, 0, 1, 1);
             this.cameras.main.startFollow(this.camTarget, true, 0.08, 0.08, -this.scale.width / 3, 0);
@@ -671,7 +347,6 @@
         setPlayerState(state) {
             if(this.playerState === state) return;
             this.playerState = state;
-            
             if(state === 'running') this.playerDOM.src = ASSETS.running;
             else if(state === 'rolling') this.playerDOM.src = ASSETS.rolling;
             else if(state === 'waiting') this.playerDOM.src = ASSETS.waiting;
@@ -679,7 +354,7 @@
         }
 
         startGame() {
-            if(this.playerState === 'waiting' && !this.isDead) {
+            if(this.playerState === 'waiting') {
                 sfx.playBGM();
                 this.setPlayerState('running');
                 this.currentRunSpeed = this.baseSpeed;
@@ -688,23 +363,12 @@
 
         setupInputs() {
             this.rollDown = false;
-            
             const bind = (id, downFn, upFn) => {
                 const el = document.getElementById(id);
-                el.addEventListener('pointerdown', (e) => { 
-                    e.preventDefault(); 
-                    this.startGame(); 
-                    downFn(); 
-                });
+                el.addEventListener('pointerdown', (e) => { e.preventDefault(); this.startGame(); downFn(); });
                 if(upFn) {
-                    el.addEventListener('pointerup', (e) => { 
-                        e.preventDefault(); 
-                        upFn(); 
-                    });
-                    el.addEventListener('pointerleave', (e) => { 
-                        e.preventDefault(); 
-                        upFn(); 
-                    });
+                    el.addEventListener('pointerup', (e) => { e.preventDefault(); upFn(); });
+                    el.addEventListener('pointerleave', (e) => { e.preventDefault(); upFn(); });
                 }
             };
 
@@ -713,46 +377,30 @@
             bind('zone-right', () => this.triggerJump(), null);
             bind('btn-jump-vis', () => this.triggerJump(), null);
 
-            document.getElementById('btn-pause').addEventListener('click', () => { 
-                this.startGame(); 
-                this.togglePause(); 
-            });
-            
+            document.getElementById('btn-pause').addEventListener('click', () => { this.startGame(); this.togglePause(); });
             document.getElementById('btn-resume').addEventListener('click', () => this.togglePause());
-            
+
+            const restart = () => {
+                document.querySelectorAll('.modal-overlay').forEach(el => el.style.display = 'none');
+                domLayer.innerHTML = '';
+                this.scene.restart();
+            };
             document.getElementById('btn-quit').addEventListener('click', () => location.reload());
             document.getElementById('btn-quit-death').addEventListener('click', () => location.reload());
-            document.getElementById('btn-quit-win').addEventListener('click', () => location.reload());
-            
-            document.getElementById('btn-retry').addEventListener('click', () => this.restartGame());
-            document.getElementById('btn-play-again').addEventListener('click', () => this.restartGame());
+            document.getElementById('btn-restart-death').addEventListener('click', restart);
+            document.getElementById('btn-restart-win').addEventListener('click', restart);
 
-            // Keyboard
             this.input.keyboard.on('keydown-SPACE', () => this.triggerJump());
             this.input.keyboard.on('keydown-UP', () => this.triggerJump());
-            this.input.keyboard.on('keydown-DOWN', () => { 
-                this.startGame(); 
-                this.rollDown = true; 
-            });
+            this.input.keyboard.on('keydown-DOWN', () => { this.startGame(); this.rollDown = true; });
             this.input.keyboard.on('keyup-DOWN', () => this.rollDown = false);
-            this.input.keyboard.on('keydown-ESC', () => this.togglePause());
-        }
-
-        restartGame() {
-            document.querySelectorAll('.modal-overlay').forEach(el => el.style.display = 'none');
-            domLayer.innerHTML = '';
-            this.isDead = false;
-            this.scene.restart();
         }
 
         triggerJump() {
-            if(this.isPaused || this.isDead || ['dead','won'].includes(this.playerState)) return;
+            if(this.isPaused ||['dead','won','damage'].includes(this.playerState)) return;
             this.startGame();
             if(this.isGrounded) {
-                this.matter.body.setVelocity(this.playerBody, { 
-                    x: this.playerBody.velocity.x, 
-                    y: -15 
-                });
+                this.matter.body.setVelocity(this.playerBody, { x: this.playerBody.velocity.x, y: -15 });
                 this.isGrounded = false;
                 sfx.play('jump');
             }
@@ -776,10 +424,7 @@
                     } else if(other.label === 'spike') {
                         this.hitSpike();
                     } else if(other.label === 'boost') {
-                        this.matter.body.setVelocity(this.playerBody, { 
-                            x: this.playerBody.velocity.x + 5, 
-                            y: -22 
-                        });
+                        this.matter.body.setVelocity(this.playerBody, { x: this.playerBody.velocity.x + 5, y: -22 });
                     } else if(other.label === 'end_flag') {
                         this.triggerWin();
                     }
@@ -788,171 +433,94 @@
         }
 
         hitSpike() {
-            if(this.isDead || this.time.now < this.invulnTimer) return;
+            if(['dead','won','damage'].includes(this.playerState) || this.time.now < this.invulnTimer) return;
 
             if(this.rings > 0) {
-                // Classic Sonic ring scatter - all rings fly outward in circular pattern
                 sfx.play('ring_loss');
-                const dropCount = Math.min(this.rings, 32); // Max 32 rings like classic Sonic
-                const ringsToScatter = this.rings;
+                this.setPlayerState('damage');
+                
+                const dropCount = Math.min(this.rings, 20); // Fountain of collected rings
                 this.rings = 0;
                 this.updateHUD();
 
-                // Show damage sprite briefly
-                this.setPlayerState('damage');
-                this.playerDOM.classList.add('damage-flash');
-                
-                setTimeout(() => {
-                    if(!this.isDead) {
-                        this.playerDOM.classList.remove('damage-flash');
-                        if(this.isGrounded) {
-                            this.setPlayerState('running');
-                        } else {
-                            this.setPlayerState('rolling');
-                        }
-                    }
-                }, 600);
+                for(let i=0; i<dropCount; i++) {
+                    const angle = Math.PI * 1.1 + (Math.PI * 0.8 * (i / Math.max(1, dropCount - 1))); 
+                    const forceMag = 0.03 + Math.random() * 0.03;
 
-                // Knockback
-                this.matter.body.setVelocity(this.playerBody, { x: -6, y: -10 });
-
-                // Scatter rings in classic circular pattern
-                for(let i = 0; i < dropCount; i++) {
-                    const angle = (Math.PI * 2 * i) / dropCount + (Math.random() * 0.3);
-                    const speed = 4 + Math.random() * 6; // Random speed for natural scatter
-                    
-                    const rBody = this.matter.add.rectangle(
-                        this.playerBody.position.x, 
-                        this.playerBody.position.y - 10, 
-                        16, 
-                        16, 
-                        {
-                            restitution: 0.7,
-                            friction: 0.01,
-                            frictionAir: 0.02,
-                            label: 'scattered_ring',
-                            collisionFilter: { 
-                                category: CAT_SCATTERED, 
-                                mask: CAT_GROUND 
-                            }
-                        }
-                    );
-                    
-                    // Set initial velocity for scatter effect
-                    this.matter.body.setVelocity(rBody, {
-                        x: Math.cos(angle) * speed,
-                        y: Math.sin(angle) * speed - 3 // Upward bias
+                    const rBody = this.matter.add.rectangle(this.playerBody.position.x, this.playerBody.position.y - 10, 16, 16, {
+                        restitution: 0.8, friction: 0.05, label: 'scattered_ring',
+                        collisionFilter: { category: CAT_SCATTERED, mask: CAT_GROUND }
                     });
-                    
-                    // Add angular spin
-                    this.matter.body.setAngularVelocity(rBody, (Math.random() - 0.5) * 0.3);
+                    this.matter.body.applyForce(rBody, { 
+                        x: Math.cos(angle) * forceMag, 
+                        y: Math.sin(angle) * forceMag - 0.02 
+                    });
 
                     const rDom = createDOMElement(ASSETS.ring, 20, 20);
-                    this.scatteredRings.push({ 
-                        body: rBody, 
-                        dom: rDom, 
-                        born: this.time.now,
-                        canCollect: false
-                    });
+                    this.scatteredRings.push({ body: rBody, dom: rDom, born: this.time.now });
 
-                    // Become collectible after 500ms (brief invulnerability for scattered rings)
-                    this.time.delayedCall(500, () => {
-                        if(rBody && !rBody.gameObject?.collected) {
-                            rBody.canCollect = true;
+                    // Re-collectible later
+                    this.time.delayedCall(800, () => {
+                        if(rBody && rBody.gameObject !== 'recycled') {
                             rBody.collisionFilter.category = CAT_RING;
                             rBody.collisionFilter.mask = CAT_PLAYER | CAT_GROUND;
                             rBody.label = 'ring';
+                            rBody.gameObject = rDom;
                         }
                     });
-
-                    // Fade out and remove after 4 seconds
-                    this.time.delayedCall(3500, () => {
-                        if(rDom && rDom.parentNode) {
-                            rDom.style.transition = 'opacity 0.5s';
-                            rDom.style.opacity = '0';
-                        }
-                    });
-                    
+                    this.time.delayedCall(3500, () => { if(rDom) { rDom.style.transition = 'opacity 0.5s'; rDom.style.opacity = '0'; } });
                     this.time.delayedCall(4000, () => {
                         if(rDom) rDom.remove();
-                        if(rBody && this.matter.world.getAllBodies().includes(rBody)) {
+                        if(rBody && rBody.gameObject !== 'recycled') {
+                            rBody.gameObject = 'recycled';
                             this.matter.world.remove(rBody);
                         }
-                        this.scatteredRings = this.scatteredRings.filter(r => r.body !== rBody);
                     });
                 }
 
+                // Bounce knockback
+                this.matter.body.setVelocity(this.playerBody, { x: -6, y: -12 });
                 this.invulnTimer = this.time.now + 2000;
 
+                let blink = setInterval(() => { 
+                    if(this.playerDOM) this.playerDOM.style.opacity = this.playerDOM.style.opacity === '0.3' ? '1' : '0.3'; 
+                }, 100);
+                this.time.delayedCall(2000, () => { clearInterval(blink); if(this.playerDOM) this.playerDOM.style.opacity = '1'; });
+
             } else {
-                // Death
-                this.die();
+                this.setPlayerState('dead');
+                sfx.play('ring_loss');
+                this.matter.body.setStatic(this.playerBody, true);
+                this.cameras.main.shake(300, 0.02);
+                this.time.delayedCall(1000, () => { document.getElementById('death-modal').style.display = 'flex'; });
             }
         }
 
-        die() {
-            if(this.isDead) return;
-            this.isDead = true;
-            this.setPlayerState('dead');
-            sfx.play('death');
-            sfx.pauseBGM();
-            
-            // Stop physics
-            this.matter.body.setStatic(this.playerBody, true);
-            
-            // Death animation - fall off screen
-            this.tweens.add({
-                targets: { y: this.playerBody.position.y },
-                y: this.playerBody.position.y + 200,
-                duration: 1000,
-                ease: 'Quad.easeIn',
-                onUpdate: (tween) => {
-                    if(this.playerBody) {
-                        this.matter.body.setPosition(this.playerBody, {
-                            x: this.playerBody.position.x,
-                            y: tween.getValue()
-                        });
-                    }
-                }
-            });
-
-            this.cameras.main.shake(500, 0.03);
-            
-            setTimeout(() => {
-                document.getElementById('death-modal').style.display = 'flex';
-            }, 1200);
-        }
-
         triggerWin() {
-            if(this.isDead || ['dead','won'].includes(this.playerState)) return;
+            if(['dead','won'].includes(this.playerState)) return;
             this.setPlayerState('won');
-            sfx.pauseBGM();
             this.matter.body.setVelocity(this.playerBody, { x: 2, y: 0 });
-            
-            setTimeout(() => {
+            this.time.delayedCall(800, () => {
                 document.getElementById('final-score').innerText = `RINGS: ${this.rings}`;
                 document.getElementById('win-modal').style.display = 'flex';
-            }, 800);
+            });
         }
 
         togglePause() {
-            if(this.isDead || ['dead','won'].includes(this.playerState)) return;
+            if(['dead','won'].includes(this.playerState)) return;
             this.isPaused = !this.isPaused;
             if(this.isPaused) {
                 this.scene.pause();
-                sfx.pauseBGM();
                 document.getElementById('pause-modal').style.display = 'flex';
             } else {
                 this.scene.resume();
-                sfx.playBGM();
                 document.getElementById('pause-modal').style.display = 'none';
             }
         }
 
         updateHUD() {
             const speed = Math.floor(Math.abs(this.playerBody.velocity.x));
-            document.getElementById('score-hud').innerHTML = 
-                `RINGS: ${this.rings}<br><span id="speed-hud" style="font-size:10px; color:#FFF;">SPEED: ${speed}</span>`;
+            document.getElementById('score-hud').innerHTML = `RINGS: ${this.rings}<br><span id="speed-hud" style="font-size:10px; color:#FFF;">SPEED: ${speed}</span>`;
         }
 
         update(time, delta) {
@@ -960,31 +528,26 @@
 
             const cam = this.cameras.main;
 
-            // Sync Player DOM
             const px = (this.playerBody.position.x - cam.scrollX) * cam.zoom;
             const py = (this.playerBody.position.y - cam.scrollY) * cam.zoom;
             this.playerDOM.style.transform = `translate(${px - 24}px, ${py - 24}px)`;
 
-            // Camera follow
             this.camTarget.setPosition(this.playerBody.position.x, this.playerBody.position.y);
 
-            // Sync Static Rings
             this.activeRingDoms.forEach(r => {
                 const rx = (r.body.position.x - cam.scrollX) * cam.zoom;
                 const ry = (r.body.position.y - cam.scrollY) * cam.zoom;
                 r.dom.style.transform = `translate(${rx - 16}px, ${ry - 16}px)`;
             });
 
-            // Sync Scattered Rings
             this.scatteredRings.forEach(r => {
                 if(r.body && r.dom) {
                     const rx = (r.body.position.x - cam.scrollX) * cam.zoom;
                     const ry = (r.body.position.y - cam.scrollY) * cam.zoom;
-                    r.dom.style.transform = `translate(${rx - 10}px, ${ry - 10}px) rotate(${r.body.angle}rad)`;
+                    r.dom.style.transform = `translate(${rx - 10}px, ${ry - 10}px)`;
                 }
             });
 
-            // Clean collected rings
             if(this.ringsToRemove.length > 0) {
                 this.ringsToRemove.forEach(body => {
                     const found = this.activeRingDoms.find(r => r.body === body);
@@ -995,21 +558,19 @@
                 this.ringsToRemove = [];
             }
 
-            if(this.isDead) return;
+            if(['dead','won'].includes(this.playerState)) return;
 
-            // Check death by falling
             if(this.playerBody.position.y > this.groundY + 300) {
-                this.die();
+                if (this.rings > 0) this.rings = 0; // Forced death trigger when falling out of bounds
+                this.hitSpike();
                 return;
             }
 
-            // Win check
-            if(this.playerBody.position.x >= this.endFlagX && !this.isDead) {
+            if(this.playerBody.position.x >= this.endFlagX && this.playerState !== 'won') {
                 this.triggerWin();
                 return;
             }
 
-            // Moving platforms
             this.levelObjects.forEach(obj => {
                 if(!obj.body) return;
                 if(obj.objType === 'moto_x') {
@@ -1024,67 +585,48 @@
                 }
             });
 
-            // Ground check
             const bodies = this.matter.world.getAllBodies().filter(b =>
-                !b.isSensor && (b.label === 'ground' || b.label === 'block' || b.label === 'ramp' || 
-                               b.label === 'platform' || b.label === 'moto_x' || b.label === 'moto_y')
+                !b.isSensor && (b.label === 'ground' || b.label === 'block' || b.label === 'ramp' || b.label === 'platform' || b.label === 'moto_x' || b.label === 'moto_y')
             );
-            const rayStart = { 
-                x: this.playerBody.position.x, 
-                y: this.playerBody.position.y + 20 
-            };
-            const rayEnd = { 
-                x: this.playerBody.position.x, 
-                y: this.playerBody.position.y + 40 
-            };
+            const rayStart = { x: this.playerBody.position.x, y: this.playerBody.position.y + 20 };
+            const rayEnd = { x: this.playerBody.position.x, y: this.playerBody.position.y + 40 };
             const collisions = Phaser.Physics.Matter.Matter.Query.ray(bodies, rayStart, rayEnd, 10);
-            const wasGrounded = this.isGrounded;
             this.isGrounded = collisions.length > 0;
 
-            // State machine
             if(this.playerState === 'waiting') return;
-            if(this.playerState === 'damage') return; // Don't change state during damage animation
-            if(this.playerState === 'won') return;
 
-            // Rolling logic - FIXED: Proper state transitions
+            // Damage recovery physics logic 
+            if(this.playerState === 'damage') {
+                // Return to run state if hitting the ground roughly after launch
+                if(this.isGrounded && time > this.invulnTimer - 1600) { 
+                    this.setPlayerState('running');
+                }
+                return;
+            }
+
             if(this.rollDown && this.isGrounded && this.playerState === 'running') {
                 this.setPlayerState('rolling');
-            } 
-            
-            // FIXED: Unroll logic - only unroll if not holding roll AND grounded
-            if(!this.rollDown && this.playerState === 'rolling' && this.isGrounded) {
-                this.setPlayerState('running');
-            }
-            
-            // Auto-roll when jumping or in air
-            if(!this.isGrounded && this.playerState === 'running') {
-                this.setPlayerState('rolling');
-            }
-            
-            // Land from roll/jump
-            if(this.isGrounded && this.playerState === 'rolling' && !this.rollDown) {
+            } else if(!this.rollDown && this.playerState === 'rolling' && this.isGrounded) {
                 this.setPlayerState('running');
             }
 
-            // Physics
+            // Fixed rolling physics (maintains velocity/momentum to prevent sticking)
             if(this.playerState === 'running') {
                 this.currentRunSpeed = Phaser.Math.Linear(this.currentRunSpeed, this.baseSpeed, 0.08);
-                
-                if(time > this.invulnTimer - 1400) {
-                    this.matter.body.setVelocity(this.playerBody, {
-                        x: this.currentRunSpeed,
-                        y: this.playerBody.velocity.y
-                    });
-                }
+                this.matter.body.setVelocity(this.playerBody, {
+                    x: this.currentRunSpeed,
+                    y: this.playerBody.velocity.y
+                });
+                if(!this.isGrounded) this.setPlayerState('rolling');
             }
             else if(this.playerState === 'rolling') {
-                // Rolling maintains momentum
-                if(this.playerBody.velocity.x < this.baseSpeed * 0.8 && this.isGrounded) {
-                    this.matter.body.applyForce(this.playerBody, { x: 0.002, y: 0 });
-                }
+                this.currentRunSpeed = Phaser.Math.Linear(this.currentRunSpeed, this.baseSpeed * 0.8, 0.02);
+                this.matter.body.setVelocity(this.playerBody, {
+                    x: this.currentRunSpeed,
+                    y: this.playerBody.velocity.y
+                });
             }
 
-            // Parallax
             if(this.bg) this.bg.tilePositionX = cam.scrollX * 0.3;
             if(time % 12 === 0) this.updateHUD();
         }
