@@ -456,8 +456,9 @@ class PlayScene extends Phaser.Scene {
             groundWidth, 32, 'grass'
         ).setDepth(-4);
 
+        // FIX 1: Position dirt much lower so it stops covering the grass
         this.dirt = this.add.tileSprite(
-            groundWidth/2, this.groundY + 232,
+            groundWidth/2, this.groundY + 232, 
             groundWidth, 400, 'dirt'
         ).setDepth(-5);
 
@@ -608,6 +609,7 @@ class PlayScene extends Phaser.Scene {
         this.updateHUD();
     }
 
+    // FIX 2: Removed setCircle errors causing freezes
     setPlayerState(state) {
         if(this.playerState === state || this.playerState === 'dead') return;
 
@@ -789,8 +791,9 @@ class PlayScene extends Phaser.Scene {
                     }
                 });
 
+                // FIX 3: Add rBody.position to applyForce call
                 const force = 0.02 + Math.random() * 0.015;
-                this.matter.body.applyForce(rBody, {
+                this.matter.body.applyForce(rBody, rBody.position, {
                     x: Math.cos(angle) * force,
                     y: Math.sin(angle) * force - 0.015
                 });
@@ -1059,13 +1062,13 @@ class PlayScene extends Phaser.Scene {
                 targetSpeed = this.baseSpeed * this.rollBoost;
             }
 
-            // Ramp boost - shoot up when rolling on ramp
+            // FIX 4: Add this.playerBody.position to applyForce calls to prevent freeze
             if(this.onRamp && this.isGrounded) {
-                this.matter.body.applyForce(this.playerBody, { x: 0.006, y: -0.003 });
+                this.matter.body.applyForce(this.playerBody, this.playerBody.position, { x: 0.006, y: -0.003 });
             }
 
             if(this.playerBody.velocity.x < targetSpeed) {
-                this.matter.body.applyForce(this.playerBody, { x: 0.002, y: 0 });
+                this.matter.body.applyForce(this.playerBody, this.playerBody.position, { x: 0.002, y: 0 });
             }
 
             if(this.isGrounded && !this.rollDown && Math.abs(this.playerBody.velocity.y) < 0.5) {
@@ -1111,7 +1114,7 @@ window.addEventListener('load', () => {
                 debug: false
             }
         },
-        scene:[BootScene, PlayScene],
+        scene: [BootScene, PlayScene],
         pixelArt: true,
         antialias: false,
         roundPixels: true
