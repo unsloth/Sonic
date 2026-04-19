@@ -286,7 +286,7 @@ const CAT_GROUND = 0x0002;
 const CAT_RING = 0x0004;
 const CAT_SCATTERED = 0x0008;
 
-const LEVEL_GRID = [
+const LEVEL_GRID =[
     { t: 'start_flag', cx: 2, cy: 0 },
     { t: 'ring', cx: 5, cy: 1 }, { t: 'ring', cx: 6, cy: 1 }, { t: 'ring', cx: 7, cy: 1 },
     { t: 'ring', cx: 6, cy: 2 },
@@ -457,7 +457,7 @@ class PlayScene extends Phaser.Scene {
         ).setDepth(-4);
 
         this.dirt = this.add.tileSprite(
-            groundWidth/2, this.groundY + 116,
+            groundWidth/2, this.groundY + 232,
             groundWidth, 400, 'dirt'
         ).setDepth(-5);
 
@@ -492,9 +492,9 @@ class PlayScene extends Phaser.Scene {
 
         // Level objects
         this.levelObjects = [];
-        this.activeRingDoms = [];
+        this.activeRingDoms =[];
         this.ringsToRemove = [];
-        this.scatteredRings = [];
+        this.scatteredRings =[];
 
         LEVEL_GRID.forEach(obj => {
             const x = obj.cx * TILE_SIZE;
@@ -617,13 +617,9 @@ class PlayScene extends Phaser.Scene {
         switch(state) {
             case 'running':
                 this.playerDOM.src = ASSETS.running;
-                if(prevState === 'rolling') {
-                    this.matter.body.setCircle(this.playerBody, 20, { x: 0, y: 0 });
-                }
                 break;
             case 'rolling':
                 this.playerDOM.src = ASSETS.rolling;
-                this.matter.body.setCircle(this.playerBody, 16, { x: 0, y: 4 });
                 break;
             case 'waiting':
                 this.playerDOM.src = ASSETS.waiting;
@@ -980,7 +976,7 @@ class PlayScene extends Phaser.Scene {
                 }
                 this.matter.world.remove(body);
             });
-            this.ringsToRemove = [];
+            this.ringsToRemove =[];
         }
 
         // Fell off world
@@ -1115,7 +1111,7 @@ window.addEventListener('load', () => {
                 debug: false
             }
         },
-        scene: [BootScene, PlayScene],
+        scene:[BootScene, PlayScene],
         pixelArt: true,
         antialias: false,
         roundPixels: true
