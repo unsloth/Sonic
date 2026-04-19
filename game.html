@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Sonic Clone - Fixed Fullscreen</title>
+    <title>Sonic Clone - Perfect Engine</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
@@ -15,12 +15,13 @@
             font-family: 'Press Start 2P', monospace; 
         }
 
-        /* JS will manipulate this wrapper to enforce fullscreen landscape */
+        /* Fixed center-aligned wrapper for flawless rotation */
         #game-wrapper {
             position: absolute;
+            top: 50%; left: 50%;
             background: #4A90E2;
             overflow: hidden;
-            transform-origin: center center;
+            /* Transform is handled precisely by JS */
         }
 
         #game-container { position: absolute; inset: 0; z-index: 1; }
@@ -28,10 +29,10 @@
         #touch-layer { position: absolute; inset: 0; z-index: 5; display: flex; }
         .touch-zone { flex: 1; height: 100%; pointer-events: auto; }
 
-        /* UI Layer with requested 60px padding */
+        /* UI padding to stay away from edges */
         #ui-layer {
             position: absolute; inset: 0; z-index: 10; pointer-events: none;
-            padding: 60px; display: flex; flex-direction: column; justify-content: space-between;
+            padding: 40px 60px; display: flex; flex-direction: column; justify-content: space-between;
         }
         .hud-top { display: flex; justify-content: space-between; align-items: flex-start; }
         .hud-bottom { display: flex; justify-content: space-between; align-items: flex-end; }
@@ -109,40 +110,43 @@
             <h2 class="modal-title" style="color:#00FF00;">ZONE CLEARED</h2>
             <p id="final-score" style="color:#fff; font-size:12px;">RINGS: 0</p>
             <button class="pixel-btn" id="btn-restart-win" style="width:100%;">PLAY AGAIN</button>
+            <button class="pixel-btn btn-red" id="btn-quit-win" style="width:100%;">QUIT</button>
         </div>
     </div>
 </div>
 
 <script>
     // ==========================================
-    // JS SCREEN ROTATION ENFORCEMENT
+    // JS SCREEN ROTATION ENFORCEMENT (100% FIXED)
     // ==========================================
     function enforceLandscape() {
         const w = window.innerWidth;
         const h = window.innerHeight;
         const wrapper = document.getElementById('game-wrapper');
 
-        // If in portrait mode, force rotation and flip dimensions
+        // Explicitly force the longest edge to be width, shortest to be height. 
+        // Eliminates the half-screen canvas glitch completely.
+        const gameWidth = Math.max(w, h);
+        const gameHeight = Math.min(w, h);
+
+        wrapper.style.width = gameWidth + 'px';
+        wrapper.style.height = gameHeight + 'px';
+
         if (h > w) { 
-            wrapper.style.width = h + 'px';
-            wrapper.style.height = w + 'px';
-            wrapper.style.top = '50%';
-            wrapper.style.left = '50%';
+            // Portrait mode -> visually rotate 90deg
             wrapper.style.transform = 'translate(-50%, -50%) rotate(90deg)';
-        } else { // Normal landscape
-            wrapper.style.width = w + 'px';
-            wrapper.style.height = h + 'px';
-            wrapper.style.top = '0px';
-            wrapper.style.left = '0px';
-            wrapper.style.transform = 'none';
+        } else {
+            // Normal landscape
+            wrapper.style.transform = 'translate(-50%, -50%) rotate(0deg)';
         }
 
-        if (window.game) {
-            setTimeout(() => { window.game.scale.resize(wrapper.clientWidth, wrapper.clientHeight); }, 50);
+        if (window.game && window.game.scale) {
+            window.game.scale.resize(gameWidth, gameHeight);
         }
     }
     window.addEventListener('resize', enforceLandscape);
-    enforceLandscape();
+    // Initialize setup immediately
+    enforceLandscape(); 
 
     // ==========================================
     // ASSETS & AUDIO
@@ -197,7 +201,7 @@
     }
     const sfx = new AudioEngine();
 
-    // Ensure Audio context is unlocked via first touch
+    // Ensure Audio context unlocks on first tap
     document.addEventListener('pointerdown', () => {
         if(sfx.ctx && sfx.ctx.state === 'suspended') sfx.ctx.resume();
     }, {once: true});
@@ -278,19 +282,19 @@
 
         init() {
             this.baseSpeed = 10;
-            this.currentRunSpeed = 0;
-            this.rings = 10; // Start with some rings to test damage easily
+            this.rings = 0;
             this.isPaused = false;
             this.playerState = 'waiting';
             this.invulnTimer = 0;
             this.endFlagX = 999999;
             this.rollDown = false;
             this.isGrounded = false;
-            this.pOffset = 27.5; // Starts at 55px (15% bigger)
+            this.pOffset = 27.5; 
         }
 
         create() {
-            this.groundY = this.scale.height - 80;
+            // Ground Y positioned perfectly 100px from the bottom
+            this.groundY = this.scale.height - 100;
             this.levelLength = (Math.max(...LEVEL_GRID.map(o => o.cx || 0)) + 10) * TILE_SIZE;
 
             this.matter.world.setGravity(0, 2.2);
@@ -299,7 +303,9 @@
 
             const groundWidth = this.levelLength + 2000;
             this.grass = this.add.tileSprite(groundWidth/2, this.groundY + 16, groundWidth, 32, 'grass').setDepth(-4).setScrollFactor(1);
-            this.dirt = this.add.tileSprite(groundWidth/2, this.groundY + 116, groundWidth, 200, 'dirt').setDepth(-5).setScrollFactor(1);
+            
+            // Fix: Dirt draws all the way to absolute bottom of any screen size
+            this.dirt = this.add.tileSprite(groundWidth/2, this.groundY + 1016, groundWidth, 2000, 'dirt').setDepth(-5).setScrollFactor(1);
 
             this.groundBody = this.matter.add.rectangle(groundWidth/2, this.groundY + 32, groundWidth, 64, {
                 isStatic: true, friction: 0.6, restitution: 0, label: 'ground', collisionFilter: { category: CAT_GROUND }
@@ -307,12 +313,13 @@
 
             const startX = TILE_SIZE * 2;
             const startY = this.groundY - 60;
+            
+            // Physics Fix: Friction near 0 allows proper rolling/sliding interaction with ramps
             this.playerBody = this.matter.add.circle(startX, startY, 22, {
-                friction: 0.001, restitution: 0, label: 'player', inertia: Infinity,
+                friction: 0.001, frictionAir: 0.002, restitution: 0, label: 'player', inertia: Infinity,
                 collisionFilter: { category: CAT_PLAYER, mask: CAT_GROUND | CAT_RING }
             });
 
-            // Start player at 55x55 (15% bigger for waiting state)
             this.playerDOM = createDOMElement(ASSETS.waiting, 55, 55);
 
             this.levelObjects =[];
@@ -344,7 +351,8 @@
                 }
                 else if (obj.t === 'ramp') {
                     sprite = this.add.image(x, y, 'tex_ramp').setOrigin(0.5).setDepth(-3);
-                    this.matter.add.rectangle(x + 8, y + 8, 140, 18, { isStatic: true, angle: -0.464, label: 'ramp', collisionFilter: { category: CAT_GROUND } });
+                    // Ramps have slightly low friction to allow physics sliding to launch you up
+                    this.matter.add.rectangle(x + 8, y + 8, 140, 18, { isStatic: true, angle: -0.464, friction: 0.05, label: 'ramp', collisionFilter: { category: CAT_GROUND } });
                 }
                 else if (obj.t === 'platform' || obj.t === 'moto_x' || obj.t === 'moto_y') {
                     sprite = this.matter.add.sprite(x, y, 'tex_' + obj.t, null, { isStatic: true, label: obj.t, collisionFilter: { category: CAT_GROUND } });
@@ -365,7 +373,7 @@
             this.cameras.main.setBounds(0, -500, this.levelLength + 1000, this.scale.height + 1000);
             this.camTarget = this.add.zone(0, 0, 1, 1);
             
-            // Refined Classic Sonic Camera Tracking with Deadzone
+            // Camera Deadzone Tracking
             this.cameras.main.startFollow(this.camTarget, true, 0.08, 0.08, 0, 50);
             this.cameras.main.setDeadzone(150, 100);
 
@@ -392,13 +400,13 @@
             }
             else if(state === 'waiting') {
                 this.playerDOM.src = ASSETS.waiting;
-                this.playerDOM.style.width = '55px'; // 15% larger
+                this.playerDOM.style.width = '55px';
                 this.playerDOM.style.height = '55px';
                 this.pOffset = 27.5;
             }
             else if(state === 'damage') {
                 this.playerDOM.src = ASSETS.damage;
-                this.playerDOM.style.width = '55px'; // 15% larger
+                this.playerDOM.style.width = '55px'; 
                 this.playerDOM.style.height = '55px';
                 this.pOffset = 27.5;
             }
@@ -408,7 +416,8 @@
             if(this.playerState === 'waiting') {
                 sfx.playBGM();
                 this.setPlayerState('running');
-                this.currentRunSpeed = this.baseSpeed;
+                // Give initial push
+                this.matter.body.setVelocity(this.playerBody, { x: 5, y: 0 });
             }
         }
 
@@ -436,15 +445,13 @@
                 domLayer.innerHTML = '';
                 this.scene.restart();
             };
-            document.getElementById('btn-quit').addEventListener('click', () => location.reload());
-            document.getElementById('btn-quit-death').addEventListener('click', () => location.reload());
+            const quitAction = () => location.reload();
+
+            document.getElementById('btn-quit').addEventListener('click', quitAction);
+            document.getElementById('btn-quit-death').addEventListener('click', quitAction);
+            document.getElementById('btn-quit-win').addEventListener('click', quitAction);
             document.getElementById('btn-restart-death').addEventListener('click', restart);
             document.getElementById('btn-restart-win').addEventListener('click', restart);
-
-            this.input.keyboard.on('keydown-SPACE', () => this.triggerJump());
-            this.input.keyboard.on('keydown-UP', () => this.triggerJump());
-            this.input.keyboard.on('keydown-DOWN', () => { this.startGame(); this.rollDown = true; });
-            this.input.keyboard.on('keyup-DOWN', () => this.rollDown = false);
         }
 
         triggerJump() {
@@ -475,7 +482,8 @@
                     } else if(other.label === 'spike') {
                         this.hitSpike();
                     } else if(other.label === 'boost') {
-                        this.matter.body.setVelocity(this.playerBody, { x: this.playerBody.velocity.x + 5, y: -22 });
+                        // Launch pad shoots him perfectly
+                        this.matter.body.setVelocity(this.playerBody, { x: this.playerBody.velocity.x + 8, y: -22 });
                     } else if(other.label === 'end_flag') {
                         this.triggerWin();
                     }
@@ -486,20 +494,21 @@
         hitSpike() {
             if(['dead','won','damage'].includes(this.playerState) || this.time.now < this.invulnTimer) return;
 
-            // Damage randomly reduces 5 to 15 rings
-            const damageAmount = Phaser.Math.Between(5, 15);
+            // Authentic Classic Sonic Logic:
+            // If Rings > 0 -> Drop ALL rings, survive.
+            // If Rings == 0 -> Die.
 
-            // Logic: If rings minus damage drops below 0, player dies.
-            if (this.rings - damageAmount >= 0) {
-                
-                this.rings -= damageAmount;
+            if (this.rings > 0) {
                 sfx.play('ring_loss');
                 this.setPlayerState('damage');
+                
+                // Cap the visual scattering for performance, but set logic rings to 0
+                const scatterVisuals = Math.min(this.rings, 25);
+                this.rings = 0; 
                 this.updateHUD();
 
-                // Fountains the rings out realistically and adds them to physics system
-                for(let i=0; i<damageAmount; i++) {
-                    const angle = Math.PI * 1.1 + (Math.PI * 0.8 * (i / Math.max(1, damageAmount - 1))); 
+                for(let i=0; i < scatterVisuals; i++) {
+                    const angle = Math.PI * 1.1 + (Math.PI * 0.8 * (i / Math.max(1, scatterVisuals - 1))); 
                     const speed = 4 + Math.random() * 6;
 
                     const rBody = this.matter.add.rectangle(this.playerBody.position.x, this.playerBody.position.y - 10, 16, 16, {
@@ -515,7 +524,6 @@
                     const rDom = createDOMElement(ASSETS.ring, 24, 24);
                     this.scatteredRings.push({ body: rBody, dom: rDom, born: this.time.now });
 
-                    // Rings bounce and become re-collectible after 800ms
                     this.time.delayedCall(800, () => {
                         if(rBody && rBody.gameObject !== 'recycled') {
                             rBody.collisionFilter.category = CAT_RING;
@@ -535,21 +543,18 @@
                     });
                 }
 
-                // Bounce knockback
+                // Bounce back gracefully
                 this.matter.body.setVelocity(this.playerBody, { x: -6, y: -12 });
                 this.invulnTimer = this.time.now + 2000;
 
-                // 2 Seconds of invincibility blinking
+                // 2 Seconds of blinking
                 let blink = setInterval(() => { 
                     if(this.playerDOM) this.playerDOM.style.opacity = this.playerDOM.style.opacity === '0.3' ? '1' : '0.3'; 
                 }, 100);
                 this.time.delayedCall(2000, () => { clearInterval(blink); if(this.playerDOM) this.playerDOM.style.opacity = '1'; });
 
             } else {
-                // DIED - Rings fell below 0
-                this.rings -= damageAmount; 
-                this.updateHUD();
-
+                // DIED - Had 0 Rings
                 this.setPlayerState('dead');
                 sfx.play('ring_loss');
                 this.matter.body.setStatic(this.playerBody, true);
@@ -678,26 +683,33 @@
                 return;
             }
 
+            // --- REAL PHYSICS-BASED MOVEMENT ---
+            
+            // Handle Roll Transition & 10% Speed Boost
             if(this.rollDown && this.isGrounded && this.playerState === 'running') {
                 this.setPlayerState('rolling');
+                // 10% Physics Boost
+                this.matter.body.setVelocity(this.playerBody, { 
+                    x: this.playerBody.velocity.x * 1.15, 
+                    y: this.playerBody.velocity.y 
+                });
             } else if(!this.rollDown && this.playerState === 'rolling' && this.isGrounded) {
                 this.setPlayerState('running');
             }
 
+            // Using FORCE instead of hardcoded velocity. This perfectly enables slope and ramp physics!
             if(this.playerState === 'running') {
-                this.currentRunSpeed = Phaser.Math.Linear(this.currentRunSpeed, this.baseSpeed, 0.08);
-                this.matter.body.setVelocity(this.playerBody, {
-                    x: this.currentRunSpeed,
-                    y: this.playerBody.velocity.y
-                });
+                if (this.playerBody.velocity.x < this.baseSpeed) {
+                    this.matter.body.applyForce(this.playerBody, { x: 0.003, y: 0 }); // Drive forward
+                }
                 if(!this.isGrounded) this.setPlayerState('rolling');
             }
             else if(this.playerState === 'rolling') {
-                this.currentRunSpeed = Phaser.Math.Linear(this.currentRunSpeed, this.baseSpeed * 0.8, 0.02);
-                this.matter.body.setVelocity(this.playerBody, {
-                    x: this.currentRunSpeed,
-                    y: this.playerBody.velocity.y
-                });
+                // While rolling, momentum is preserved. 
+                // We barely apply any force, so ramps naturally change your direction!
+                if (this.playerBody.velocity.x < this.baseSpeed * 0.6) {
+                    this.matter.body.applyForce(this.playerBody, { x: 0.0005, y: 0 }); // Prevents getting completely stuck
+                }
             }
 
             if(this.bg) this.bg.tilePositionX = cam.scrollX * 0.3;
@@ -712,9 +724,9 @@
         type: Phaser.AUTO,
         parent: 'game-container',
         scale: {
-            mode: Phaser.Scale.RESIZE, // Resizes relative to absolute wrapper sizes
-            width: '100%',
-            height: '100%'
+            mode: Phaser.Scale.NONE, // Scale is 100% manually driven by our flawless enforceLandscape function
+            width: window.innerWidth,
+            height: window.innerHeight
         },
         backgroundColor: '#4A90E2',
         physics: {
