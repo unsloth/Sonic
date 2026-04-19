@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Sonic Clone - Perfect Engine</title>
+    <title>Sonic Clone - True Landscape Engine</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
@@ -15,29 +15,50 @@
             font-family: 'Press Start 2P', monospace; 
         }
 
-        /* Fixed center-aligned wrapper for flawless rotation */
+        /* 
+           PURE CSS FORCED LANDSCAPE:
+           This completely eliminates the canvas/image misalignment bugs.
+           It uses dynamic viewport units (dvw/dvh) to perfectly swap orientation
+           without messing up the browser's touch coordinate system.
+        */
         #game-wrapper {
             position: absolute;
-            top: 50%; left: 50%;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            width: 100dvw; height: 100dvh;
             background: #4A90E2;
             overflow: hidden;
-            /* Transform is handled precisely by JS */
+            transform-origin: center center;
+        }
+
+        @media screen and (orientation: portrait) {
+            #game-wrapper {
+                width: 100vh; height: 100vw;
+                width: 100dvh; height: 100dvw;
+                transform: rotate(90deg);
+                /* Precisely center the rotated rectangle */
+                top: calc((100vh - 100vw) / 2); left: calc((100vw - 100vh) / 2);
+                top: calc((100dvh - 100dvw) / 2); left: calc((100dvw - 100dvh) / 2);
+            }
         }
 
         #game-container { position: absolute; inset: 0; z-index: 1; }
+        
+        /* DOM elements now live perfectly inside the rotated wrapper's coordinate space */
         #dom-layer { position: absolute; inset: 0; z-index: 2; pointer-events: none; overflow: hidden; }
         #touch-layer { position: absolute; inset: 0; z-index: 5; display: flex; }
         .touch-zone { flex: 1; height: 100%; pointer-events: auto; }
 
-        /* UI padding to stay away from edges */
+        /* UI padding to keep buttons away from screen edges */
         #ui-layer {
             position: absolute; inset: 0; z-index: 10; pointer-events: none;
             padding: 40px 60px; display: flex; flex-direction: column; justify-content: space-between;
         }
+        
         .hud-top { display: flex; justify-content: space-between; align-items: flex-start; }
         .hud-bottom { display: flex; justify-content: space-between; align-items: flex-end; }
 
-        #score-hud { color: #FFD700; text-shadow: 2px 2px 0 #002D72, -2px -2px 0 #000; font-size: 14px; line-height: 1.5; pointer-events: auto; }
+        #score-hud { color: #FFD700; text-shadow: 2px 2px 0 #002D72, -2px -2px 0 #000; font-size: 16px; line-height: 1.5; pointer-events: auto; }
 
         .pixel-btn {
             background: #002D72; border: 3px solid #fff; color: #fff; font-family: inherit;
@@ -48,7 +69,7 @@
         .btn-red { background: #E3000F; }
 
         .action-btn {
-            width: 56px; height: 56px; border-radius: 50%; background: rgba(0, 45, 114, 0.85);
+            width: 64px; height: 64px; border-radius: 50%; background: rgba(0, 45, 114, 0.85);
             border: 3px solid rgba(255,255,255,0.9); color: #fff; display: flex; align-items: center; justify-content: center;
             font-size: 10px; box-shadow: 0 5px 0 rgba(0,0,0,0.5); font-family: inherit; cursor: pointer; pointer-events: auto;
         }
@@ -80,7 +101,8 @@
 
     <div id="ui-layer">
         <div class="hud-top">
-            <div id="score-hud">RINGS: 0<br><span id="speed-hud" style="font-size:10px; color:#FFF;">SPEED: 0</span></div>
+            <!-- Removed Speed text, kept Rings clean -->
+            <div id="score-hud">RINGS: 0</div>
             <button class="pixel-btn" id="btn-pause">|| PAUSE</button>
         </div>
         <div class="hud-bottom">
@@ -108,7 +130,7 @@
     <div id="win-modal" class="modal-overlay">
         <div class="retro-box">
             <h2 class="modal-title" style="color:#00FF00;">ZONE CLEARED</h2>
-            <p id="final-score" style="color:#fff; font-size:12px;">RINGS: 0</p>
+            <p id="final-score" style="color:#fff; font-size:14px;">RINGS: 0</p>
             <button class="pixel-btn" id="btn-restart-win" style="width:100%;">PLAY AGAIN</button>
             <button class="pixel-btn btn-red" id="btn-quit-win" style="width:100%;">QUIT</button>
         </div>
@@ -116,38 +138,6 @@
 </div>
 
 <script>
-    // ==========================================
-    // JS SCREEN ROTATION ENFORCEMENT (100% FIXED)
-    // ==========================================
-    function enforceLandscape() {
-        const w = window.innerWidth;
-        const h = window.innerHeight;
-        const wrapper = document.getElementById('game-wrapper');
-
-        // Explicitly force the longest edge to be width, shortest to be height. 
-        // Eliminates the half-screen canvas glitch completely.
-        const gameWidth = Math.max(w, h);
-        const gameHeight = Math.min(w, h);
-
-        wrapper.style.width = gameWidth + 'px';
-        wrapper.style.height = gameHeight + 'px';
-
-        if (h > w) { 
-            // Portrait mode -> visually rotate 90deg
-            wrapper.style.transform = 'translate(-50%, -50%) rotate(90deg)';
-        } else {
-            // Normal landscape
-            wrapper.style.transform = 'translate(-50%, -50%) rotate(0deg)';
-        }
-
-        if (window.game && window.game.scale) {
-            window.game.scale.resize(gameWidth, gameHeight);
-        }
-    }
-    window.addEventListener('resize', enforceLandscape);
-    // Initialize setup immediately
-    enforceLandscape(); 
-
     // ==========================================
     // ASSETS & AUDIO
     // ==========================================
@@ -173,7 +163,7 @@
         }
         playBGM() { 
             if(!this.started){ 
-                this.bgm.play().catch(e => console.log('BGM Blocked by Browser:', e)); 
+                this.bgm.play().catch(e => console.log('BGM Blocked by Browser')); 
                 this.started=true; 
             } 
         }
@@ -201,7 +191,6 @@
     }
     const sfx = new AudioEngine();
 
-    // Ensure Audio context unlocks on first tap
     document.addEventListener('pointerdown', () => {
         if(sfx.ctx && sfx.ctx.state === 'suspended') sfx.ctx.resume();
     }, {once: true});
@@ -281,8 +270,8 @@
         constructor() { super('PlayScene'); }
 
         init() {
-            this.baseSpeed = 10;
-            this.rings = 0;
+            this.maxRunSpeed = 12;
+            this.rings = 10; // Start with some rings to test logic
             this.isPaused = false;
             this.playerState = 'waiting';
             this.invulnTimer = 0;
@@ -293,7 +282,6 @@
         }
 
         create() {
-            // Ground Y positioned perfectly 100px from the bottom
             this.groundY = this.scale.height - 100;
             this.levelLength = (Math.max(...LEVEL_GRID.map(o => o.cx || 0)) + 10) * TILE_SIZE;
 
@@ -303,20 +291,18 @@
 
             const groundWidth = this.levelLength + 2000;
             this.grass = this.add.tileSprite(groundWidth/2, this.groundY + 16, groundWidth, 32, 'grass').setDepth(-4).setScrollFactor(1);
-            
-            // Fix: Dirt draws all the way to absolute bottom of any screen size
             this.dirt = this.add.tileSprite(groundWidth/2, this.groundY + 1016, groundWidth, 2000, 'dirt').setDepth(-5).setScrollFactor(1);
 
             this.groundBody = this.matter.add.rectangle(groundWidth/2, this.groundY + 32, groundWidth, 64, {
-                isStatic: true, friction: 0.6, restitution: 0, label: 'ground', collisionFilter: { category: CAT_GROUND }
+                isStatic: true, friction: 0.1, restitution: 0, label: 'ground', collisionFilter: { category: CAT_GROUND }
             });
 
             const startX = TILE_SIZE * 2;
             const startY = this.groundY - 60;
             
-            // Physics Fix: Friction near 0 allows proper rolling/sliding interaction with ramps
+            // Physics Profile: Ultra low friction so slopes naturally launch the player
             this.playerBody = this.matter.add.circle(startX, startY, 22, {
-                friction: 0.001, frictionAir: 0.002, restitution: 0, label: 'player', inertia: Infinity,
+                friction: 0.001, frictionAir: 0.005, restitution: 0, label: 'player', inertia: Infinity,
                 collisionFilter: { category: CAT_PLAYER, mask: CAT_GROUND | CAT_RING }
             });
 
@@ -324,7 +310,7 @@
 
             this.levelObjects =[];
             this.activeRingDoms =[];
-            this.ringsToRemove = [];
+            this.ringsToRemove =[];
             this.scatteredRings =[];
 
             LEVEL_GRID.forEach(obj => {
@@ -339,7 +325,7 @@
                 }
                 else if (obj.t === 'block') {
                     sprite = this.add.tileSprite(x, y, 64, 64, 'grass').setDepth(-3);
-                    this.matter.add.rectangle(x, y, 64, 64, { isStatic: true, label: 'block', collisionFilter: { category: CAT_GROUND } });
+                    this.matter.add.rectangle(x, y, 64, 64, { isStatic: true, friction: 0.1, label: 'block', collisionFilter: { category: CAT_GROUND } });
                 }
                 else if (obj.t === 'spike') {
                     sprite = this.matter.add.sprite(x, y + 5, 'spike', null, { isStatic: true, isSensor: true, label: 'spike', collisionFilter: { category: CAT_RING } });
@@ -351,8 +337,8 @@
                 }
                 else if (obj.t === 'ramp') {
                     sprite = this.add.image(x, y, 'tex_ramp').setOrigin(0.5).setDepth(-3);
-                    // Ramps have slightly low friction to allow physics sliding to launch you up
-                    this.matter.add.rectangle(x + 8, y + 8, 140, 18, { isStatic: true, angle: -0.464, friction: 0.05, label: 'ramp', collisionFilter: { category: CAT_GROUND } });
+                    // Accurately angled physical ramp with near-zero friction for gliding
+                    this.matter.add.rectangle(x + 8, y + 8, 140, 18, { isStatic: true, angle: -0.464, friction: 0.01, label: 'ramp', collisionFilter: { category: CAT_GROUND } });
                 }
                 else if (obj.t === 'platform' || obj.t === 'moto_x' || obj.t === 'moto_y') {
                     sprite = this.matter.add.sprite(x, y, 'tex_' + obj.t, null, { isStatic: true, label: obj.t, collisionFilter: { category: CAT_GROUND } });
@@ -372,8 +358,6 @@
 
             this.cameras.main.setBounds(0, -500, this.levelLength + 1000, this.scale.height + 1000);
             this.camTarget = this.add.zone(0, 0, 1, 1);
-            
-            // Camera Deadzone Tracking
             this.cameras.main.startFollow(this.camTarget, true, 0.08, 0.08, 0, 50);
             this.cameras.main.setDeadzone(150, 100);
 
@@ -416,13 +400,14 @@
             if(this.playerState === 'waiting') {
                 sfx.playBGM();
                 this.setPlayerState('running');
-                // Give initial push
                 this.matter.body.setVelocity(this.playerBody, { x: 5, y: 0 });
             }
         }
 
         setupInputs() {
             this.rollDown = false;
+            
+            // Replaced logic: pointerdown directly interacts with UI layout reliably
             const bind = (id, downFn, upFn) => {
                 const el = document.getElementById(id);
                 el.addEventListener('pointerdown', (e) => { e.preventDefault(); this.startGame(); downFn(); });
@@ -437,19 +422,22 @@
             bind('zone-right', () => this.triggerJump(), null);
             bind('btn-jump-vis', () => this.triggerJump(), null);
 
-            document.getElementById('btn-pause').addEventListener('click', () => { this.startGame(); this.togglePause(); });
-            document.getElementById('btn-resume').addEventListener('click', () => this.togglePause());
+            // Important: UI button binds attached properly outside Phaser Scene update
+            document.getElementById('btn-pause').addEventListener('click', (e) => { e.preventDefault(); this.startGame(); this.togglePause(); });
+            document.getElementById('btn-resume').addEventListener('click', (e) => { e.preventDefault(); this.togglePause(); });
 
-            const restart = () => {
+            const restart = (e) => {
+                e.preventDefault();
                 document.querySelectorAll('.modal-overlay').forEach(el => el.style.display = 'none');
                 domLayer.innerHTML = '';
                 this.scene.restart();
             };
-            const quitAction = () => location.reload();
+            const quitAction = (e) => { e.preventDefault(); location.reload(); };
 
             document.getElementById('btn-quit').addEventListener('click', quitAction);
             document.getElementById('btn-quit-death').addEventListener('click', quitAction);
             document.getElementById('btn-quit-win').addEventListener('click', quitAction);
+            
             document.getElementById('btn-restart-death').addEventListener('click', restart);
             document.getElementById('btn-restart-win').addEventListener('click', restart);
         }
@@ -482,7 +470,6 @@
                     } else if(other.label === 'spike') {
                         this.hitSpike();
                     } else if(other.label === 'boost') {
-                        // Launch pad shoots him perfectly
                         this.matter.body.setVelocity(this.playerBody, { x: this.playerBody.velocity.x + 8, y: -22 });
                     } else if(other.label === 'end_flag') {
                         this.triggerWin();
@@ -494,15 +481,10 @@
         hitSpike() {
             if(['dead','won','damage'].includes(this.playerState) || this.time.now < this.invulnTimer) return;
 
-            // Authentic Classic Sonic Logic:
-            // If Rings > 0 -> Drop ALL rings, survive.
-            // If Rings == 0 -> Die.
-
             if (this.rings > 0) {
                 sfx.play('ring_loss');
                 this.setPlayerState('damage');
                 
-                // Cap the visual scattering for performance, but set logic rings to 0
                 const scatterVisuals = Math.min(this.rings, 25);
                 this.rings = 0; 
                 this.updateHUD();
@@ -543,24 +525,20 @@
                     });
                 }
 
-                // Bounce back gracefully
                 this.matter.body.setVelocity(this.playerBody, { x: -6, y: -12 });
                 this.invulnTimer = this.time.now + 2000;
 
-                // 2 Seconds of blinking
                 let blink = setInterval(() => { 
                     if(this.playerDOM) this.playerDOM.style.opacity = this.playerDOM.style.opacity === '0.3' ? '1' : '0.3'; 
                 }, 100);
                 this.time.delayedCall(2000, () => { clearInterval(blink); if(this.playerDOM) this.playerDOM.style.opacity = '1'; });
 
             } else {
-                // DIED - Had 0 Rings
                 this.setPlayerState('dead');
                 sfx.play('ring_loss');
                 this.matter.body.setStatic(this.playerBody, true);
                 this.cameras.main.shake(300, 0.02);
                 
-                // Wait 1 second, freeze the game entirely, and show UI
                 this.time.delayedCall(1000, () => { 
                     this.scene.pause(); 
                     document.getElementById('death-modal').style.display = 'flex'; 
@@ -592,8 +570,8 @@
         }
 
         updateHUD() {
-            const speed = Math.floor(Math.abs(this.playerBody.velocity.x));
-            document.getElementById('score-hud').innerHTML = `RINGS: ${this.rings}<br><span id="speed-hud" style="font-size:10px; color:#FFF;">SPEED: ${speed}</span>`;
+            // Speed indicator removed entirely
+            document.getElementById('score-hud').innerHTML = `RINGS: ${this.rings}`;
         }
 
         update(time, delta) {
@@ -601,6 +579,7 @@
 
             const cam = this.cameras.main;
 
+            // DOM Overlay mapping perfectly aligns because Pure CSS handles the viewport coords
             const px = (this.playerBody.position.x - cam.scrollX) * cam.zoom;
             const py = (this.playerBody.position.y - cam.scrollY) * cam.zoom;
             this.playerDOM.style.transform = `translate(${px - this.pOffset}px, ${py - this.pOffset}px)`;
@@ -683,37 +662,36 @@
                 return;
             }
 
-            // --- REAL PHYSICS-BASED MOVEMENT ---
+            // --- REAL PHYSICS-BASED MOVEMENT WITH FORCES ---
             
-            // Handle Roll Transition & 10% Speed Boost
+            // Handle Roll Transition & 10% Speed Boost logic
             if(this.rollDown && this.isGrounded && this.playerState === 'running') {
                 this.setPlayerState('rolling');
-                // 10% Physics Boost
+                // 10% instant physics impulse boost when you press roll
                 this.matter.body.setVelocity(this.playerBody, { 
-                    x: this.playerBody.velocity.x * 1.15, 
+                    x: this.playerBody.velocity.x * 1.10, 
                     y: this.playerBody.velocity.y 
                 });
             } else if(!this.rollDown && this.playerState === 'rolling' && this.isGrounded) {
                 this.setPlayerState('running');
             }
 
-            // Using FORCE instead of hardcoded velocity. This perfectly enables slope and ramp physics!
+            // Instead of rigid SetVelocity, use ApplyForce to interact naturally with ramps
             if(this.playerState === 'running') {
-                if (this.playerBody.velocity.x < this.baseSpeed) {
-                    this.matter.body.applyForce(this.playerBody, { x: 0.003, y: 0 }); // Drive forward
+                if (this.playerBody.velocity.x < this.maxRunSpeed) {
+                    this.matter.body.applyForce(this.playerBody, { x: 0.005, y: 0 }); // Drive forward
                 }
                 if(!this.isGrounded) this.setPlayerState('rolling');
             }
             else if(this.playerState === 'rolling') {
-                // While rolling, momentum is preserved. 
-                // We barely apply any force, so ramps naturally change your direction!
-                if (this.playerBody.velocity.x < this.baseSpeed * 0.6) {
-                    this.matter.body.applyForce(this.playerBody, { x: 0.0005, y: 0 }); // Prevents getting completely stuck
+                // While rolling, momentum carries you up ramps flawlessly. 
+                // We barely apply any force, gravity and slope angle do the work.
+                if (this.playerBody.velocity.x < this.maxRunSpeed && this.rollDown) {
+                    this.matter.body.applyForce(this.playerBody, { x: 0.001, y: 0 }); 
                 }
             }
 
             if(this.bg) this.bg.tilePositionX = cam.scrollX * 0.3;
-            if(time % 12 === 0) this.updateHUD();
         }
     }
 
@@ -724,9 +702,9 @@
         type: Phaser.AUTO,
         parent: 'game-container',
         scale: {
-            mode: Phaser.Scale.NONE, // Scale is 100% manually driven by our flawless enforceLandscape function
-            width: window.innerWidth,
-            height: window.innerHeight
+            mode: Phaser.Scale.RESIZE, // Automatically responds to our CSS wrapper size perfectly
+            width: '100%',
+            height: '100%'
         },
         backgroundColor: '#4A90E2',
         physics: {
