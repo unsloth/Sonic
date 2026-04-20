@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Sonic Level Editor</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        * { 
+            box-sizing: border-box; margin: 0; padding: 0; 
+            user-select: none; -webkit-user-select: none; touch-action: none; 
+        }
+        html, body { 
+            width: 100vw; height: 100vh; overflow: hidden; background: #000; 
+            font-family: 'Press Start 2P', monospace; position: fixed;
+        }
+
+        #game-wrapper {
+            position: fixed; top: 50%; left: 50%; width: 100vh; height: 100vw;
+            transform: translate(-50%, -50%) rotate(90deg);
+            transform-origin: center center; overflow: hidden; background: #4A90E2;
+        }
+
+        #game-container, #dom-layer { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; 
+        }
+        #dom-layer { z-index: 2; pointer-events: none; overflow: hidden; }
+
+        /* PLAY UI LAYER */
+        #play-ui-layer {
+            position: absolute; top: 65px; bottom: 65px; left: 115px; right: 115px;
+            z-index: 10; pointer-events: none; display: none; flex-direction: column; justify-content: space-between;
+        }
+
+        /* EDITOR UI LAYER - Bottom padding is 20px */
+        #editor-ui-layer {
+            position: absolute; top: 65px; bottom: 20px; left: 115px; right: 115px;
+            z-index: 10; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between;
+        }
+
+        .hud-top { display: flex; justify-content: space-between; align-items: flex-start; pointer-events: none; }
+        .hud-bottom { display: flex; justify-content: space-between; align-items: flex-end; pointer-events: none;}
+        
+        .editor-bottom { 
+            display: flex; justify-content: center; align-items: center; 
+            width: 100%; pointer-events: none; gap: 10px; 
+        }
+
+        .tool-group { display: flex; gap: 8px; pointer-events: auto; }
+
+        #score-hud { color: #FFD700; text-shadow: 2px 2px 0 #002D72, -2px -2px 0 #000; font-size: 14px; pointer-events: auto; }
+
+        .pixel-btn {
+            background: #002D72; border: 3px solid #fff; color: #fff; font-family: inherit; font-size: 12px; 
+            padding: 10px 16px; cursor: pointer; text-transform: uppercase; outline: none; pointer-events: auto;
+            box-shadow: inset -3px -3px 0 rgba(0,0,0,0.4), 4px 4px 0 #000;
+        }
+        .pixel-btn:active { transform: translate(4px, 4px); box-shadow: none; background: #FFD700; color: #002D72; }
+        .pixel-btn.active-tool { background: #FFD700; color: #002D72; border-color: #E3000F; }
+        
+        .btn-red { background: #E3000F; }
+        .btn-icon { padding: 10px; font-size: 16px; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; }
+
+        .action-btn {
+            width: 64px; height: 64px; border-radius: 50%; background: rgba(0, 45, 114, 0.85);
+            border: 3px solid rgba(255,255,255,0.9); color: #fff; display: flex; align-items: center; justify-content: center;
+            font-size: 10px; box-shadow: 0 5px 0 rgba(0,0,0,0.5); font-family: inherit; cursor: pointer; pointer-events: auto;
+        }
+        .action-btn:active { transform: translateY(5px); box-shadow: none; background: rgba(255, 215, 0, 0.9); color: #000; }
+
+        /* ITEM SCROLLER */
+        .scroller-wrapper {
+            background: rgba(0, 45, 114, 0.9); border: 4px solid #fff; padding: 10px;
+            box-shadow: 8px 8px 0 #000; display: flex; overflow-x: hidden; gap: 10px; width: 320px; 
+            pointer-events: auto; scroll-behavior: smooth;
+        }
+        
+        .scroller-item {
+            min-width: 60px; height: 60px; background: #000; border: 2px solid #555;
+            display: flex; align-items: center; justify-content: center; flex-direction: column;
+            color: #fff; font-size: 8px; cursor: pointer; flex-shrink: 0;
+        }
+        .scroller-item.selected { border: 3px solid #FFD700; background: rgba(255, 215, 0, 0.2); }
+        .item-preview { width: 32px; height: 32px; object-fit: contain; margin-bottom: 4px; image-rendering: pixelated; }
+
+        /* MODALS */
+        .modal-overlay {
+            position: absolute; inset: 0; background: rgba(0,0,0,0.92); display: none; 
+            align-items: center; justify-content: center; z-index: 100; pointer-events: auto; flex-direction: column;
+        }
+        .retro-box {
+            background: #002D72; border: 4px solid #fff; box-shadow: inset -4px -4px 0 rgba(0,0,0,0.4), 8px 8px 0 #000;
+            padding: 30px; display: flex; flex-direction: column; gap: 15px; align-items: center; text-align: center; 
+            min-width: 280px; max-width: 80%;
+        }
+        .modal-title { color: #FFD700; text-shadow: 3px 3px 0 #000; font-size: 18px; line-height: 1.5; margin-bottom: 5px; }
+
+        .game-gif { position: absolute; top: 0; left: 0; will-change: transform; object-fit: contain; image-rendering: pixelated; pointer-events: none; }
+        .damage-flash { position: absolute; inset: 0; background: rgba(255, 0, 0, 0.3); display: none; z-index: 50; pointer-events: none; }
+
+        /* Touch layers */
+        #editor-touch-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 6; touch-action: none; display: none; }
+        #touch-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; display: none; }
+        .touch-zone { flex: 1; height: 100%; pointer-events: auto; }
+    </style>
+<base target="_blank">
+</head>
+<body>
+
+<div id="game-wrapper">
+    <div id="game-container"></div>
+    <div id="dom-layer"></div>
+    <div id="damage-flash" class="damage-flash"></div>
+
+    <!-- Used strictly to translate raw touch coordinates safely for the editor -->
+    <div id="editor-touch-layer"></div>
+
+    <div id="touch-layer">
+        <div class="touch-zone" id="zone-left"></div>
+        <div class="touch-zone" id="zone-right"></div>
+    </div>
+
+    <!-- PLAY UI -->
+    <div id="play-ui-layer">
+        <div class="hud-top">
+            <div id="score-hud">RINGS: 0</div>
+            <div class="tool-group">
+                <button class="pixel-btn" id="btn-pause">||</button>
+                <button class="pixel-btn btn-red" id="btn-exit-test">BACK TO EDITOR</button>
+            </div>
+        </div>
+        <div class="hud-bottom">
+            <button class="action-btn" id="btn-roll-vis">ROLL</button>
+            <button class="action-btn" id="btn-jump-vis">JUMP</button>
+        </div>
+    </div>
+
+    <!-- EDITOR UI -->
+    <div id="editor-ui-layer">
+        <div class="hud-top">
+            <button class="pixel-btn btn-icon" id="btn-settings">⚙️</button>
+            <div class="tool-group">
+                <button class="pixel-btn btn-icon" id="tool-zoom-out">-</button>
+                <button class="pixel-btn btn-icon" id="tool-zoom-in">+</button>
+                <button class="pixel-btn btn-icon tool-mode active-tool" data-mode="pan">👆</button>
+                <button class="pixel-btn btn-icon tool-mode" data-mode="draw">🖊️</button>
+                <button class="pixel-btn btn-icon tool-mode" data-mode="erase">🔙</button>
+            </div>
+        </div>
+        <div class="editor-bottom">
+            <!-- Left Scroll Button -->
+            <button class="pixel-btn btn-icon" id="btn-scroll-left">&lt;</button>
+            
+            <!-- Item Scroller -->
+            <div class="scroller-wrapper" id="item-scroller">
+                <!-- Injected via JS -->
+            </div>
+            
+            <!-- Right Scroll Button -->
+            <button class="pixel-btn btn-icon" id="btn-scroll-right">&gt;</button>
+        </div>
+    </div>
+
+    <!-- Editor Settings Modal -->
+    <div id="editor-modal" class="modal-overlay">
+        <div class="retro-box">
+            <h2 class="modal-title">EDITOR MENU</h2>
+            <button class="pixel-btn" id="btn-ed-continue" style="width:100%;">CONTINUE</button>
+            <button class="pixel-btn" id="btn-ed-test" style="width:100%; color:#00FF00; border-color:#00FF00;">TEST MAP</button>
+            <button class="pixel-btn" id="btn-ed-save" style="width:100%;">SAVE TO BROWSER</button>
+            <button class="pixel-btn" id="btn-ed-download" style="width:100%;">DOWNLOAD .JSON</button>
+            <button class="pixel-btn btn-red" id="btn-ed-quit" style="width:100%;">QUIT EDITOR</button>
+        </div>
+    </div>
+
+    <!-- Pause Modal (Play Mode) -->
+    <div id="pause-modal" class="modal-overlay">
+        <div class="retro-box">
+            <h2 class="modal-title">PAUSED</h2>
+            <button class="pixel-btn" id="btn-resume" style="width:100%;">RESUME</button>
+            <button class="pixel-btn btn-red" id="btn-quit-play" style="width:100%;">QUIT</button>
+        </div>
+    </div>
+
+    <!-- Death Modal -->
+    <div id="death-modal" class="modal-overlay">
+        <div class="retro-box">
+            <h2 class="modal-title" style="color:#ff4c4c;">YOU DIED</h2>
+            <button class="pixel-btn" id="btn-retry" style="width:100%;">TRY AGAIN</button>
+            <button class="pixel-btn btn-red" id="btn-quit-death" style="width:100%;">EXIT TEST</button>
+        </div>
+    </div>
+
+    <!-- Win Modal -->
+    <div id="win-modal" class="modal-overlay">
+        <div class="retro-box">
+            <h2 class="modal-title" style="color:#00FF00;">ZONE CLEARED!</h2>
+            <p id="final-score" style="color:#fff; font-size:12px;">RINGS: 0</p>
+            <button class="pixel-btn" id="btn-play-again" style="width:100%;">PLAY AGAIN</button>
+            <button class="pixel-btn btn-red" id="btn-quit-win" style="width:100%;">EXIT TEST</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const ASSETS = {
+    boost: 'https://raw.githubusercontent.com/unsloth/sonic/refs/heads/main/img/boost.png',
+    dirt: 'https://raw.githubusercontent.com/unsloth/sonic/refs/heads/main/img/dirt.png',
+    spike: 'https://raw.githubusercontent.com/unsloth/sonic/refs/heads/main/img/spike.png',
+    bg: 'https://raw.githubusercontent.com/unsloth/sonic/refs/heads/main/img/images%20(1).png',
+    grass: 'https://raw.githubusercontent.com/unsloth/sonic/refs/heads/main/img/grass.png',
+    rolling: 'https://raw.githubusercontent.com/unsloth/sonic/refs/heads/main/img/rolling.gif',
+    rolling2: 'https://raw.githubusercontent.com/unsloth/sonic/refs/heads/main/img/rolling-2.gif',
+    ring: 'https://raw.githubusercontent.com/unsloth/sonic/refs/heads/main/img/ring.gif',
+    running: 'https://raw.githubusercontent.com/unsloth/sonic/refs/heads/main/img/running.gif',
+    waiting: 'https://raw.githubusercontent.com/unsloth/sonic/refs/heads/main/img/waiting.gif',
+    damage: 'https://raw.githubusercontent.com/unsloth/sonic/refs/heads/main/img/damage.png'
+};
+
+const ITEMS =[
+    { t: 'start_flag', label: 'START', img: 'https://raw.githubusercontent.com/unsloth/sonic/refs/heads/main/img/running.gif' },
+    { t: 'end_flag', label: 'END', img: 'https://raw.githubusercontent.com/unsloth/sonic/refs/heads/main/img/running.gif' },
+    { t: 'ring', label: 'RING', img: ASSETS.ring },
+    { t: 'spike', label: 'SPIKE', img: ASSETS.spike },
+    { t: 'ramp', label: 'RAMP', img: ASSETS.dirt }, 
+    { t: 'block', label: 'BLOCK', img: ASSETS.grass },
+    { t: 'platform', label: 'PLATFORM', img: ASSETS.dirt },
+    { t: 'moto_x', label: 'MOTO X', img: ASSETS.boost },
+    { t: 'moto_y', label: 'MOTO Y', img: ASSETS.boost },
+    { t: 'boost', label: 'BOOST', img: ASSETS.boost }
+];
+
+Object.values(ASSETS).forEach(src => { const img = new Image(); img.src = src; });
+
+window.sonicLevelData =[
+    { t: 'start_flag', cx: 2, cy: 0 },
+    { t: 'end_flag', cx: 20, cy: 0 }
+];
+
+try {
+    const saved = localStorage.getItem('sonic_custom_map');
+    if(saved) window.sonicLevelData = JSON.parse(saved);
+} catch(e) {}
+
+const domLayer = document.getElementById('dom-layer');
+function createDOMElement(src, w, h) {
+    const img = document.createElement('img');
+    img.src = src; img.className = 'game-gif';
+    img.style.width = w + 'px'; img.style.height = h + 'px';
+    img.draggable = false; domLayer.appendChild(img);
+    return img;
+}
+
+class AudioEngine {
+    constructor() {
+        try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+        this.bgm = new Audio('https://cdn.jsdelivr.net/gh/unsloth/sonic@main/sound/sonic.mp3');
+        this.bgm.loop = true; this.bgm.volume = 0.3; this.started = false;
+    }
+    async playBGM() { if(!this.started) { try { await this.bgm.play(); this.started = true; } catch(e) {} } }
+    pauseBGM() { this.bgm.pause(); this.started = false; }
+    play(type) {
+        if(!this.ctx) return;
+        if(this.ctx.state === 'suspended') this.ctx.resume();
+        const t = this.ctx.currentTime; const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+        osc.connect(gain); gain.connect(this.ctx.destination);
+        if(type === 'ring') { osc.type = 'sine'; osc.frequency.setValueAtTime(1200, t); osc.frequency.exponentialRampToValueAtTime(2200, t + 0.1); gain.gain.setValueAtTime(0.3, t); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3); osc.start(t); osc.stop(t + 0.3); }
+        else if(type === 'jump') { osc.type = 'square'; osc.frequency.setValueAtTime(150, t); osc.frequency.exponentialRampToValueAtTime(300, t + 0.2); gain.gain.setValueAtTime(0.1, t); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2); osc.start(t); osc.stop(t + 0.2); }
+        else if(type === 'ring_loss') { osc.type = 'sawtooth'; osc.frequency.setValueAtTime(400, t); osc.frequency.exponentialRampToValueAtTime(50, t + 0.5); gain.gain.setValueAtTime(0.4, t); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.5); osc.start(t); osc.stop(t + 0.5); }
+        else if(type === 'damage') { osc.type = 'square'; osc.frequency.setValueAtTime(80, t); osc.frequency.exponentialRampToValueAtTime(40, t + 0.2); gain.gain.setValueAtTime(0.3, t); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2); osc.start(t); osc.stop(t + 0.2); }
+    }
+}
+const sfx = new AudioEngine();
+const TILE_SIZE = 64;
+
+function generatePixelArt(scene) {
+    const g = scene.make.graphics({x:0, y:0, add:false});
+    g.clear(); g.fillStyle(0x666666); g.fillRect(14, 0, 4, 128); g.fillStyle(0xAAAAAA); g.fillRect(18, 0, 4, 128);
+    for(let y=0; y<4; y++) for(let x=0; x<4; x++) { g.fillStyle((x+y)%2===0 ? 0x00FF00 : 0x006600); g.fillRect(26 + x*9, 8 + y*9, 9, 9); }
+    g.generateTexture('tex_start', 64, 128);
+    g.clear(); g.fillStyle(0x666666); g.fillRect(14, 0, 4, 128); g.fillStyle(0xAAAAAA); g.fillRect(18, 0, 4, 128);
+    for(let y=0; y<4; y++) for(let x=0; x<4; x++) { g.fillStyle((x+y)%2===0 ? 0xFFFFFF : 0x333333); g.fillRect(26 + x*9, 8 + y*9, 9, 9); }
+    g.generateTexture('tex_end', 64, 128);
+    g.clear(); g.fillStyle(0x5C3317); g.fillRect(0, 0, 128, 16); g.fillStyle(0x8B4513); g.fillRect(1, 1, 126, 14);
+    for(let i=0; i<8; i++) { g.fillStyle(0xA0522D); g.fillRect(i*16+2, 2, 13, 6); g.fillStyle(0x8B4513); g.fillRect(i*16+2, 9, 13, 5); g.fillStyle(0x333333); g.fillRect(i*16+6, 4, 3, 3); g.fillStyle(0x333333); g.fillRect(i*16+6, 10, 3, 3); }
+    g.generateTexture('tex_platform', 128, 16);
+    g.clear(); for(let i=0; i<16; i++) { g.fillStyle(i%2===0 ? 0xFFD700 : 0x222222); g.fillRect(i*8, 0, 8, 16); }
+    g.generateTexture('tex_moto_x', 128, 16);
+    g.clear(); for(let i=0; i<16; i++) { g.fillStyle(i%2===0 ? 0xFF4500 : 0x222222); g.fillRect(i*8, 0, 8, 16); }
+    g.generateTexture('tex_moto_y', 128, 16);
+    g.clear(); g.fillStyle(0x5D3A1A); g.beginPath(); g.moveTo(0, 64); g.lineTo(128, 64); g.lineTo(128, 0); g.closePath(); g.fillPath(); g.fillStyle(0x00AA00); g.beginPath(); g.moveTo(0, 64); g.lineTo(128, 64); g.lineTo(128, 4); g.closePath(); g.fillPath(); g.fillStyle(0x00CC00); g.beginPath(); g.moveTo(0, 64); g.lineTo(128, 64); g.lineTo(128, 10); g.closePath(); g.fillPath();
+    g.generateTexture('tex_ramp', 128, 64);
+}
+
+class BootScene extends Phaser.Scene {
+    constructor() { super('BootScene'); }
+    preload() { this.load.image('bg', ASSETS.bg); this.load.image('grass', ASSETS.grass); this.load.image('dirt', ASSETS.dirt); this.load.image('spike', ASSETS.spike); this.load.image('boost', ASSETS.boost); this.load.image('damage', ASSETS.damage); }
+    create() { generatePixelArt(this); this.scene.start('EditorScene'); }
+}
+
+// ==========================================
+// EDITOR SCENE
+// ==========================================
+class EditorScene extends Phaser.Scene {
+    constructor() { super('EditorScene'); }
+    
+    init() {
+        const wrapper = document.getElementById('game-wrapper');
+        this.gameWidth = wrapper.offsetWidth; this.gameHeight = wrapper.offsetHeight;
+        this.groundY = this.gameHeight - 80;
+        this.editorMode = 'pan';
+        this.selectedItem = 'ring';
+        this.cameraZoom = 1;
+        this.sprites =[];
+        
+        document.getElementById('editor-ui-layer').style.display = 'flex';
+        document.getElementById('play-ui-layer').style.display = 'none';
+        document.getElementById('editor-touch-layer').style.display = 'block'; // Editor touch capture ON
+        document.getElementById('touch-layer').style.display = 'none';
+        domLayer.innerHTML = '';
+        sfx.pauseBGM();
+    }
+
+    create() {
+        this.cameras.main.setBackgroundColor('#4A90E2');
+        this.bg = this.add.tileSprite(this.gameWidth/2, this.gameHeight/2, this.gameWidth, this.gameHeight, 'bg').setScrollFactor(0).setDepth(-10);
+        this.grass = this.add.tileSprite(0, this.groundY + 16, 20000, 32, 'grass').setDepth(-4);
+        this.dirt = this.add.tileSprite(0, this.groundY + 232, 20000, 400, 'dirt').setDepth(-5);
+
+        this.renderMap();
+        this.setupEditorInputs();
+        this.setupDOMListeners();
+    }
+
+    renderMap() {
+        this.sprites.forEach(s => s.destroy());
+        this.sprites =[];
+        
+        window.sonicLevelData.forEach(obj => {
+            const x = obj.cx * TILE_SIZE;
+            const y = this.groundY - 32 - (obj.cy * TILE_SIZE);
+            let sprite;
+
+            if(obj.t === 'ring') sprite = this.add.image(x, y, 'damage').setAlpha(0);
+            else if(obj.t === 'block') sprite = this.add.tileSprite(x, y, 64, 64, 'grass');
+            else if(obj.t === 'spike') { sprite = this.add.image(x, y + 5, 'spike'); sprite.setDisplaySize(64, 54); }
+            else if(obj.t === 'boost') { sprite = this.add.image(x, y + 11, 'boost'); sprite.setDisplaySize(64, 41); }
+            else if(obj.t === 'ramp') sprite = this.add.image(x, y, 'tex_ramp').setOrigin(0.5);
+            else if(['platform', 'moto_x', 'moto_y'].includes(obj.t)) { sprite = this.add.image(x, y, 'tex_' + obj.t); sprite.setDisplaySize(128, 16); }
+            else if(['start_flag', 'end_flag'].includes(obj.t)) sprite = this.add.image(x, y - 32, 'tex_' + obj.t.split('_')[0]).setOrigin(0.5);
+
+            if(sprite) {
+                sprite.setData('obj', obj);
+                this.sprites.push(sprite);
+                if(obj.t === 'ring') {
+                    const rd = createDOMElement(ASSETS.ring, 28, 28);
+                    rd.dataset.cx = obj.cx; rd.dataset.cy = obj.cy;
+                    sprite.setData('dom', rd);
+                }
+            }
+        });
+        this.updateDOMPositions();
+    }
+
+    updateDOMPositions() {
+        const cam = this.cameras.main;
+        this.sprites.forEach(s => {
+            const dom = s.getData('dom');
+            if(dom) {
+                const rx = (s.x - cam.scrollX) * cam.zoom + (this.gameWidth * (1 - cam.zoom) / 2);
+                const ry = (s.y - cam.scrollY) * cam.zoom + (this.gameHeight * (1 - cam.zoom) / 2);
+                dom.style.transform = `translate(${rx - 14}px, ${ry - 14}px) scale(${cam.zoom})`;
+            }
+        });
+        this.grass.tilePositionX = this.cameras.main.scrollX;
+        this.dirt.tilePositionX = this.cameras.main.scrollX;
+    }
+
+    update() { this.updateDOMPositions(); }
+
+    setupEditorInputs() {
+        const rawEditorLayer = document.getElementById('editor-touch-layer');
+        rawEditorLayer.replaceWith(rawEditorLayer.cloneNode(true)); // Clear all previous listeners cleanly
+        const editorLayer = document.getElementById('editor-touch-layer');
+
+        let isDragging = false;
+        let startX, startY, lastX, lastY;
+
+        editorLayer.addEventListener('pointerdown', (e) => {
+            isDragging = true;
+            startX = e.offsetX; startY = e.offsetY;
+            lastX = e.offsetX; lastY = e.offsetY;
+        });
+
+        editorLayer.addEventListener('pointermove', (e) => {
+            if(!isDragging) return;
+            if(this.editorMode === 'pan') {
+                const dx = e.offsetX - lastX;
+                const dy = e.offsetY - lastY;
+                this.cameras.main.scrollX -= dx / this.cameraZoom;
+                this.cameras.main.scrollY -= dy / this.cameraZoom;
+            }
+            lastX = e.offsetX; lastY = e.offsetY;
+        });
+
+        editorLayer.addEventListener('pointerup', (e) => {
+            isDragging = false;
+            const dist = Math.hypot(e.offsetX - startX, e.offsetY - startY);
+            if (dist > 5) return; // Ignore if user dragged to pan the camera
+
+            const cam = this.cameras.main;
+            
+            // Using e.offsetX bypasses all Phaser/CSS rotation bugs, mapping 1:1 visually!
+            const worldX = (e.offsetX - this.gameWidth / 2) / cam.zoom + cam.scrollX + this.gameWidth / 2;
+            const worldY = (e.offsetY - this.gameHeight / 2) / cam.zoom + cam.scrollY + this.gameHeight / 2;
+
+            const cx = Math.round(worldX / TILE_SIZE);
+            const cy = Math.round((this.groundY - 32 - worldY) / TILE_SIZE);
+
+            if (cy < 0) return;
+
+            if (this.editorMode === 'draw') {
+                if (this.selectedItem === 'start_flag' || this.selectedItem === 'end_flag') {
+                    window.sonicLevelData = window.sonicLevelData.filter(o => o.t !== this.selectedItem);
+                }
+                window.sonicLevelData = window.sonicLevelData.filter(o => !(o.cx === cx && o.cy === cy));
+                window.sonicLevelData.push({ t: this.selectedItem, cx: cx, cy: cy });
+                domLayer.innerHTML = '';
+                this.renderMap();
+            } 
+            else if (this.editorMode === 'erase') {
+                window.sonicLevelData = window.sonicLevelData.filter(o => !(o.cx === cx && o.cy === cy));
+                domLayer.innerHTML = '';
+                this.renderMap();
+            }
+        });
+
+        editorLayer.addEventListener('pointercancel', () => isDragging = false);
+        editorLayer.addEventListener('pointerleave', () => isDragging = false);
+    }
+
+    setupDOMListeners() {
+        if(this.domSetup) return;
+        this.domSetup = true;
+
+        const scroller = document.getElementById('item-scroller');
+        scroller.innerHTML = '';
+        ITEMS.forEach((it, i) => {
+            const div = document.createElement('div');
+            div.className = `scroller-item ${i===2 ? 'selected' : ''}`;
+            div.innerHTML = `<img src="${it.img}" class="item-preview"><span>${it.label}</span>`;
+            div.onclick = () => {
+                document.querySelectorAll('.scroller-item').forEach(el => el.classList.remove('selected'));
+                div.classList.add('selected');
+                this.selectedItem = it.t;
+                this.editorMode = 'draw';
+                updateToolUI('draw');
+            };
+            scroller.appendChild(div);
+        });
+
+        // Scrolling Button Handlers (Scrolls exactly 2 items / 140px smoothly)
+        document.getElementById('btn-scroll-left').onclick = () => {
+            scroller.scrollBy({ left: -140, behavior: 'smooth' });
+        };
+        document.getElementById('btn-scroll-right').onclick = () => {
+            scroller.scrollBy({ left: 140, behavior: 'smooth' });
+        };
+
+        const updateToolUI = (mode) => {
+            document.querySelectorAll('.tool-mode').forEach(el => el.classList.remove('active-tool'));
+            document.querySelector(`.tool-mode[data-mode="${mode}"]`).classList.add('active-tool');
+            this.editorMode = mode;
+        };
+
+        document.querySelectorAll('.tool-mode').forEach(btn => {
+            btn.addEventListener('click', (e) => updateToolUI(e.target.dataset.mode));
+        });
+
+        document.getElementById('tool-zoom-in').onclick = () => { this.cameraZoom = Math.min(2, this.cameraZoom + 0.2); this.cameras.main.setZoom(this.cameraZoom); };
+        document.getElementById('tool-zoom-out').onclick = () => { this.cameraZoom = Math.max(0.4, this.cameraZoom - 0.2); this.cameras.main.setZoom(this.cameraZoom); };
+
+        document.getElementById('btn-settings').onclick = () => document.getElementById('editor-modal').style.display = 'flex';
+        document.getElementById('btn-ed-continue').onclick = () => document.getElementById('editor-modal').style.display = 'none';
+        
+        document.getElementById('btn-ed-test').onclick = () => {
+            document.getElementById('editor-modal').style.display = 'none';
+            this.scene.start('PlayScene');
+        };
+
+        document.getElementById('btn-ed-save').onclick = () => {
+            localStorage.setItem('sonic_custom_map', JSON.stringify(window.sonicLevelData));
+            const btn = document.getElementById('btn-ed-save');
+            btn.innerText = "SAVED!"; setTimeout(() => btn.innerText = "SAVE TO BROWSER", 1500);
+        };
+
+        document.getElementById('btn-ed-download').onclick = () => {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(window.sonicLevelData));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "sonic_map.json");
+            document.body.appendChild(downloadAnchorNode); 
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        };
+
+        document.getElementById('btn-ed-quit').onclick = () => window.location.href = 'https://unsloth.github.io/sonic';
+    }
+}
+
+// ==========================================
+// PLAY SCENE (Test Mode)
+// ==========================================
+class PlayScene extends Phaser.Scene {
+    constructor() { super('PlayScene'); }
+    init() {
+        const wrapper = document.getElementById('game-wrapper');
+        this.gameWidth = wrapper.offsetWidth; this.gameHeight = wrapper.offsetHeight;
+        this.baseSpeed = 7; this.currentSpeed = 0; this.rings = 0;
+        this.isPaused = false; this.isGameOver = false; this.playerState = 'waiting';
+        this.invulnTimer = 0; this.rollDown = false; this.isGrounded = false; this.onRamp = false; this.endFlagX = 999999;
+        this.playerOffset = 34;
+        
+        document.getElementById('editor-ui-layer').style.display = 'none';
+        document.getElementById('play-ui-layer').style.display = 'flex';
+        document.getElementById('editor-touch-layer').style.display = 'none'; // Editor touch OFF during test mode
+        document.getElementById('touch-layer').style.display = 'flex';
+        domLayer.innerHTML = '';
+    }
+
+    create() {
+        this.groundY = this.gameHeight - 80;
+        this.levelLength = (Math.max(...window.sonicLevelData.map(o => o.cx || 0)) + 15) * TILE_SIZE;
+        this.matter.world.setGravity(0, 2.0);
+        
+        this.bg = this.add.tileSprite(this.gameWidth/2, this.gameHeight/2, this.gameWidth, this.gameHeight, 'bg').setScrollFactor(0).setDepth(-10).setScale(2);
+        
+        const groundWidth = this.levelLength + 4000;
+        this.grass = this.add.tileSprite(groundWidth/2, this.groundY + 16, groundWidth, 32, 'grass').setDepth(-4);
+        this.dirt = this.add.tileSprite(groundWidth/2, this.groundY + 232, groundWidth, 400, 'dirt').setDepth(-5);
+        this.groundBody = this.matter.add.rectangle(groundWidth/2, this.groundY + 50, groundWidth, 100, { isStatic: true, friction: 0.8, restitution: 0, label: 'ground', collisionFilter: { category: 0x0002 } });
+        
+        let startObj = window.sonicLevelData.find(o => o.t === 'start_flag');
+        const startX = startObj ? startObj.cx * TILE_SIZE : TILE_SIZE * 2;
+        const startY = startObj ? this.groundY - 32 - (startObj.cy * TILE_SIZE) - 40 : this.groundY - 50;
+
+        this.playerBody = this.matter.add.circle(startX, startY, 24, { friction: 0.005, frictionAir: 0.01, restitution: 0.1, label: 'player', collisionFilter: { category: 0x0001, mask: 0x0002 | 0x0004 } });
+        this.matter.body.setInertia(this.playerBody, Infinity);
+        this.playerDOM = createDOMElement(ASSETS.waiting, 69, 69);
+        this.damageFlash = document.getElementById('damage-flash');
+        
+        this.levelObjects =[]; this.activeRingDoms =[]; this.ringsToRemove =[]; this.scatteredRings =[];
+        
+        window.sonicLevelData.forEach(obj => {
+            const x = obj.cx * TILE_SIZE; const y = this.groundY - 32 - (obj.cy * TILE_SIZE); let sprite;
+            if(obj.t === 'ring') { const rBody = this.matter.add.rectangle(x, y, 24, 24, { isStatic: true, isSensor: true, label: 'ring', collisionFilter: { category: 0x0004 } }); const rDom = createDOMElement(ASSETS.ring, 28, 28); this.activeRingDoms.push({ body: rBody, dom: rDom }); }
+            else if(obj.t === 'block') { this.add.tileSprite(x, y, 64, 64, 'grass').setDepth(-3); this.matter.add.rectangle(x, y, 64, 64, { isStatic: true, label: 'block', collisionFilter: { category: 0x0002 } }); }
+            else if(obj.t === 'spike') { sprite = this.matter.add.sprite(x, y + 5, 'spike', null, { isStatic: true, isSensor: true, label: 'spike', collisionFilter: { category: 0x0004 } }); sprite.setDisplaySize(64, 54); }
+            else if(obj.t === 'boost') { sprite = this.matter.add.sprite(x, y + 11, 'boost', null, { isStatic: true, isSensor: true, label: 'boost', collisionFilter: { category: 0x0004 } }); sprite.setDisplaySize(64, 41); }
+            else if(obj.t === 'ramp') { this.add.image(x, y, 'tex_ramp').setOrigin(0.5).setDepth(-3); this.matter.add.rectangle(x, y + 16, 128, 32, { isStatic: true, angle: -0.4636, label: 'ramp', friction: 0.02, collisionFilter: { category: 0x0002 } }); }
+            else if(['platform', 'moto_x', 'moto_y'].includes(obj.t)) { sprite = this.matter.add.sprite(x, y, 'tex_' + obj.t, null, { isStatic: true, label: obj.t, collisionFilter: { category: 0x0002 } }); sprite.setDisplaySize(128, 16); sprite.startX = x; sprite.startY = y; }
+            else if(['start_flag', 'end_flag'].includes(obj.t)) { sprite = this.add.image(x, y - 32, 'tex_' + obj.t.split('_')[0]).setOrigin(0.5).setDepth(-2); this.matter.add.rectangle(x, y - 32, 48, 120, { isStatic: true, isSensor: true, label: obj.t, collisionFilter: { category: 0x0004 } }); if(obj.t === 'end_flag') this.endFlagX = x; }
+            if(sprite) { sprite.objType = obj.t; this.levelObjects.push(sprite); }
+        });
+
+        this.cameras.main.setBounds(-2000, -2000, this.levelLength + 6000, this.gameHeight + 4000);
+        this.camTarget = this.add.zone(0, 0, 1, 1);
+        this.cameras.main.startFollow(this.camTarget, true, 0.1, 0.1, -this.gameWidth / 3, 0);
+        this.setupInputs(); this.setupCollisions(); this.updateHUD();
+    }
+
+    setPlayerState(state) {
+        if(this.playerState === state || this.playerState === 'dead') return;
+        this.playerState = state;
+        if (['running', 'rolling', 'ground_rolling'].includes(state)) {
+            this.playerDOM.style.width = '52px'; this.playerDOM.style.height = '52px'; this.playerOffset = 26;
+        } else {
+            this.playerDOM.style.width = '69px'; this.playerDOM.style.height = '69px'; this.playerOffset = 34;
+        }
+        switch(state) {
+            case 'running': this.playerDOM.src = ASSETS.running; break;
+            case 'rolling': this.playerDOM.src = ASSETS.rolling; break;
+            case 'ground_rolling': this.playerDOM.src = ASSETS.rolling2; break;
+            case 'waiting': this.playerDOM.src = ASSETS.waiting; break;
+            case 'dead': this.playerDOM.style.display = 'none'; break;
+            case 'won': this.playerDOM.src = ASSETS.running; break;
+        }
+    }
+
+    startGame() { if(this.playerState === 'waiting') { sfx.playBGM(); this.setPlayerState('running'); this.currentSpeed = this.baseSpeed; } }
+
+    setupInputs() {
+        this.rollDown = false;
+        const bindBtn = (id, downFn, upFn) => {
+            const el = document.getElementById(id);
+            const down = (e) => { e.preventDefault(); e.stopPropagation(); this.startGame(); downFn(); };
+            const up = upFn ? (e) => { e.preventDefault(); upFn(); } : null;
+            el.replaceWith(el.cloneNode(true)); 
+            const newEl = document.getElementById(id);
+            newEl.addEventListener('pointerdown', down);
+            if(up) { newEl.addEventListener('pointerup', up); newEl.addEventListener('pointerleave', up); newEl.addEventListener('pointercancel', up); }
+        };
+        bindBtn('zone-left', () => this.rollDown = true, () => this.rollDown = false);
+        bindBtn('btn-roll-vis', () => this.rollDown = true, () => this.rollDown = false);
+        bindBtn('zone-right', () => this.triggerJump(), null);
+        bindBtn('btn-jump-vis', () => this.triggerJump(), null);
+
+        document.getElementById('btn-pause').onclick = (e) => { e.stopPropagation(); this.startGame(); this.togglePause(); };
+        document.getElementById('btn-resume').onclick = () => this.togglePause();
+        
+        const exitTest = () => {
+            document.querySelectorAll('.modal-overlay').forEach(el => el.style.display = 'none');
+            this.scene.start('EditorScene');
+        };
+        document.getElementById('btn-exit-test').onclick = exitTest;
+        document.getElementById('btn-quit-play').onclick = exitTest;
+        document.getElementById('btn-quit-death').onclick = exitTest;
+        document.getElementById('btn-quit-win').onclick = exitTest;
+        
+        document.getElementById('btn-retry').onclick = () => { document.querySelectorAll('.modal-overlay').forEach(el => el.style.display = 'none'); this.scene.restart(); };
+        document.getElementById('btn-play-again').onclick = () => { document.querySelectorAll('.modal-overlay').forEach(el => el.style.display = 'none'); this.scene.restart(); };
+
+        this.input.keyboard.on('keydown-SPACE', () => this.triggerJump());
+        this.input.keyboard.on('keydown-DOWN', () => { this.startGame(); this.rollDown = true; });
+        this.input.keyboard.on('keyup-DOWN', () => this.rollDown = false);
+    }
+
+    triggerJump() {
+        if(this.isPaused || this.isGameOver || ['dead','won'].includes(this.playerState)) return;
+        this.startGame();
+        if(this.isGrounded) {
+            const jumpForce = (this.playerState === 'rolling' || this.playerState === 'ground_rolling') ? -18 : -15;
+            this.matter.body.setVelocity(this.playerBody, { x: this.playerBody.velocity.x, y: jumpForce });
+            this.isGrounded = false; this.setPlayerState('rolling'); sfx.play('jump');
+        }
+    }
+
+    setupCollisions() {
+        this.matter.world.on('collisionstart', (event) => {
+            event.pairs.forEach(pair => {
+                const playerBody = pair.bodyA.label === 'player' ? pair.bodyA : (pair.bodyB.label === 'player' ? pair.bodyB : null);
+                const other = playerBody ? (pair.bodyA === playerBody ? pair.bodyB : pair.bodyA) : null;
+                if(!other) return;
+                if(other.label === 'ring') { if(!this.ringsToRemove.includes(other)) { this.ringsToRemove.push(other); this.rings++; this.updateHUD(); sfx.play('ring'); } }
+                else if(other.label === 'spike') this.hitSpike();
+                else if(other.label === 'boost') this.matter.body.setVelocity(this.playerBody, { x: this.playerBody.velocity.x + 8, y: -20 });
+                else if(other.label === 'end_flag') this.triggerWin();
+            });
+        });
+        this.matter.world.on('collisionactive', (event) => { this.onRamp = false; event.pairs.forEach(pair => { if((pair.bodyA.label === 'player' && pair.bodyB.label === 'ramp') || (pair.bodyB.label === 'player' && pair.bodyA.label === 'ramp')) this.onRamp = true; }); });
+    }
+
+    hitSpike() {
+        if(this.playerState === 'dead' || this.playerState === 'won' || this.time.now < this.invulnTimer) return;
+        if(this.rings > 0) {
+            sfx.play('ring_loss'); const scatter = Math.min(this.rings, 20); this.rings = 0; this.updateHUD(); this.showDamage();
+            for(let i=0; i<scatter; i++) {
+                const angle = (Math.PI*2/scatter)*i; const rx = this.playerBody.position.x + Math.cos(angle)*20; const ry = this.playerBody.position.y + Math.sin(angle)*20 - 20;
+                const rb = this.matter.add.rectangle(rx, ry, 12, 12, { restitution: 0.9, friction: 0.001, label: 'scattered_ring', collisionFilter: { category: 0x0008, mask: 0x0002 } });
+                this.matter.body.applyForce(rb, rb.position, { x: Math.cos(angle)*0.02, y: Math.sin(angle)*0.02 - 0.015 });
+                const rd = createDOMElement(ASSETS.ring, 16, 16); this.scatteredRings.push({ body: rb, dom: rd });
+                this.time.delayedCall(600, () => { if(rb && !rb.removed) { rb.collisionFilter.category = 0x0004; rb.collisionFilter.mask = 0x0001 | 0x0002; rb.label = 'ring'; } });
+                this.time.delayedCall(3500, () => { if(rd) rd.style.opacity = '0'; });
+                this.time.delayedCall(4000, () => { if(rd) rd.remove(); if(rb && !rb.removed) { rb.removed = true; this.matter.world.remove(rb); } });
+            }
+            this.matter.body.setVelocity(this.playerBody, { x: -4, y: -8 }); this.invulnTimer = this.time.now + 2000; this.startBlinking();
+        } else this.die();
+    }
+
+    showDamage() {
+        this.damageFlash.style.display = 'block'; sfx.play('damage');
+        const orig = this.playerDOM.src; this.playerDOM.src = ASSETS.damage;
+        setTimeout(() => { this.damageFlash.style.display = 'none'; if(this.playerState !== 'dead') this.playerDOM.src = orig; }, 300);
+    }
+
+    startBlinking() { let vis = true; const blink = setInterval(() => { if(this.playerState === 'dead') { clearInterval(blink); return; } vis = !vis; this.playerDOM.style.opacity = vis ? '1' : '0.3'; }, 100); this.time.delayedCall(2000, () => { clearInterval(blink); this.playerDOM.style.opacity = '1'; }); }
+    die() { if(this.playerState === 'dead') return; this.setPlayerState('dead'); this.isGameOver = true; sfx.play('ring_loss'); sfx.pauseBGM(); this.matter.body.setStatic(this.playerBody, true); this.cameras.main.shake(500, 0.03); this.time.delayedCall(1000, () => { document.getElementById('death-modal').style.display = 'flex'; }); }
+    triggerWin() { if(this.playerState === 'won' || this.playerState === 'dead') return; this.setPlayerState('won'); this.isGameOver = true; sfx.pauseBGM(); this.matter.body.setVelocity(this.playerBody, { x: 2, y: 0 }); this.time.delayedCall(800, () => { document.getElementById('final-score').innerText = `RINGS: ${this.rings}`; document.getElementById('win-modal').style.display = 'flex'; }); }
+    togglePause() { if(this.isGameOver) return; this.isPaused = !this.isPaused; if(this.isPaused) { this.scene.pause(); sfx.pauseBGM(); document.getElementById('pause-modal').style.display = 'flex'; } else { this.scene.resume(); sfx.playBGM(); document.getElementById('pause-modal').style.display = 'none'; } }
+    updateHUD() { document.getElementById('score-hud').innerText = `RINGS: ${this.rings}`; }
+
+    update(time, delta) {
+        if(this.isPaused) return;
+        const cam = this.cameras.main;
+        const px = this.playerBody.position.x - cam.scrollX; const py = this.playerBody.position.y - cam.scrollY;
+        this.playerDOM.style.transform = `translate(${px - this.playerOffset}px, ${py - this.playerOffset}px)`;
+        this.camTarget.setPosition(this.playerBody.position.x, this.playerBody.position.y);
+        this.activeRingDoms.forEach(r => { const rx = r.body.position.x - cam.scrollX; const ry = r.body.position.y - cam.scrollY; r.dom.style.transform = `translate(${rx - 14}px, ${ry - 14}px)`; });
+        this.scatteredRings.forEach(r => { if(r.body && !r.body.removed) { const rx = r.body.position.x - cam.scrollX; const ry = r.body.position.y - cam.scrollY; r.dom.style.transform = `translate(${rx - 8}px, ${ry - 8}px)`; } });
+        if(this.ringsToRemove.length > 0) { this.ringsToRemove.forEach(body => { const idx = this.activeRingDoms.findIndex(r => r.body === body); if(idx !== -1) { this.activeRingDoms[idx].dom.remove(); this.activeRingDoms.splice(idx, 1); } this.matter.world.remove(body); }); this.ringsToRemove =[]; }
+        if(this.playerBody.position.y > this.groundY + 300) { this.die(); return; }
+        if(this.playerBody.position.x >= this.endFlagX && this.playerState !== 'won') { this.triggerWin(); return; }
+        if(this.playerState === 'waiting' || this.playerState === 'dead' || this.playerState === 'won') return;
+        this.levelObjects.forEach(obj => { if(!obj.body) return; if(obj.objType === 'moto_x') { const nx = obj.startX + Math.sin(time*0.002)*120; this.matter.body.setPosition(obj.body, { x: nx, y: obj.y }); obj.x = nx; } else if(obj.objType === 'moto_y') { const ny = obj.startY + Math.sin(time*0.002)*120; this.matter.body.setPosition(obj.body, { x: obj.x, y: ny }); obj.y = ny; } });
+        const bodies = this.matter.world.getAllBodies().filter(b => !b.isSensor &&['ground','block','ramp','platform','moto_x','moto_y'].includes(b.label));
+        const collisions = Phaser.Physics.Matter.Matter.Query.ray(bodies, {x: this.playerBody.position.x, y: this.playerBody.position.y + 20}, {x: this.playerBody.position.x, y: this.playerBody.position.y + 40}, 8);
+        this.isGrounded = collisions.length > 0;
+
+        if(this.rollDown && this.isGrounded && this.playerState === 'running') this.setPlayerState('ground_rolling');
+        else if(!this.rollDown && (this.playerState === 'rolling' || this.playerState === 'ground_rolling') && this.isGrounded) this.setPlayerState('running');
+
+        if(this.playerState === 'running') {
+            this.currentSpeed = Phaser.Math.Linear(this.currentSpeed, this.baseSpeed, 0.05);
+            if(time > this.invulnTimer - 1500) this.matter.body.setVelocity(this.playerBody, { x: this.currentSpeed, y: this.playerBody.velocity.y });
+            if(!this.isGrounded) this.setPlayerState('rolling');
+        } else if(this.playerState === 'rolling' || this.playerState === 'ground_rolling') {
+            let target = this.isGrounded ? (this.baseSpeed * 1.8) : this.baseSpeed;
+            let accel = this.isGrounded ? 0.06 : 0.02;
+            if(this.onRamp && this.isGrounded) { target = this.baseSpeed * 2.5; accel = 0.15; }
+            this.currentSpeed = Phaser.Math.Linear(this.currentSpeed, target, accel);
+            if(time > this.invulnTimer - 1500) this.matter.body.setVelocity(this.playerBody, { x: this.currentSpeed, y: this.playerBody.velocity.y });
+            if (this.isGrounded && this.rollDown && this.playerState === 'rolling') this.setPlayerState('ground_rolling');
+            else if (!this.isGrounded && this.playerState === 'ground_rolling') this.setPlayerState('rolling');
+            if(this.isGrounded && !this.rollDown && Math.abs(this.playerBody.velocity.y) < 0.5) this.setPlayerState('running');
+        }
+        if(this.bg) this.bg.tilePositionX = cam.scrollX * 0.3;
+    }
+}
+
+window.addEventListener('load', () => {
+    const wrapper = document.getElementById('game-wrapper');
+    new Phaser.Game({
+        type: Phaser.AUTO, parent: 'game-container', width: wrapper.offsetWidth, height: wrapper.offsetHeight,
+        scale: { mode: Phaser.Scale.NONE, autoCenter: Phaser.Scale.NO_CENTER },
+        backgroundColor: '#4A90E2', physics: { default: 'matter', matter: { gravity: { y: 2.0 }, debug: false } },
+        scene:[BootScene, EditorScene, PlayScene], pixelArt: true, antialias: false, roundPixels: true
+    });
+});
+</script>
+</body>
+</html>
