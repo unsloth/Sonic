@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sonic Dash - Menu</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+            touch-action: none;
+        }
+
+        #app-wrap {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 100vw;
+            height: 100vh;
+            transform: translate(-50%, -50%);
+            background: url('https://raw.githubusercontent.com/unsloth/sonic/refs/heads/main/img/menu.png') center/cover no-repeat;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        @media screen and (orientation: portrait) {
+            #app-wrap {
+                width: 100vh;
+                height: 100vw;
+                transform: translate(-50%, -50%) rotate(90deg);
+            }
+        }
+        
+        .menu-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            background: none;
+            padding: 15px;
+            z-index: 10;
+        }
+
+        .pixel-text {
+            font-family: 'Press Start 2P', 'Courier New', cursive;
+            color: #FFD700;
+            text-transform: uppercase;
+            text-shadow: 3px 3px 0 #002D72, -2px -2px 0 #fff;
+            font-size: 1.8rem;
+            margin-bottom: 15px;
+            text-align: center;
+            line-height: 1.2;
+        }
+        
+        .pixel-btn {
+            font-family: 'Press Start 2P', 'Courier New', cursive;
+            background: #002D72;
+            color: #fff;
+            border: 3px solid #fff;
+            box-shadow: inset -3px -3px 0 rgba(0,0,0,0.4), 4px 4px 0 #000;
+            font-size: 10px;
+            padding: 12px 20px;
+            cursor: pointer;
+            width: 180px;
+            text-align: center;
+            text-transform: uppercase;
+            transition: all 0.1s;
+            outline: none;
+        }
+
+        .pixel-btn:hover {
+            background: #FFD700;
+            color: #002D72;
+        }
+
+        .pixel-btn:active {
+            transform: translate(4px, 4px);
+            box-shadow: none;
+            background: #FFD700;
+            color: #002D72;
+        }
+
+        .btn-red {
+            background: #E3000F;
+        }
+
+        .btn-red:hover {
+            background: #FF4c4c;
+            color: #fff;
+        }
+        
+        .modal-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+        
+        .retro-box {
+            background: #002D72;
+            border: 4px solid #fff;
+            box-shadow: inset -4px -4px 0 rgba(0,0,0,0.4), 8px 8px 0 #000;
+            padding: 20px;
+            width: 90%;
+            max-width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .retro-box h2 {
+            font-size: 1.2rem;
+            text-shadow: 2px 2px 0 #000;
+            margin-bottom: 5px;
+            color: #FFD700;
+            text-align: center;
+        }
+        
+        #level-list {
+            background: #000;
+            border: 2px solid #fff;
+            padding: 8px;
+            max-height: 150px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        #level-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #level-list::-webkit-scrollbar-track {
+            background: #002D72;
+            border-left: 1px solid #fff;
+        }
+
+        #level-list::-webkit-scrollbar-thumb {
+            background: #FFD700;
+            border: 1px solid #000;
+        }
+        
+        .level-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #111;
+            padding: 8px;
+            border: 1px solid #444;
+        }
+
+        .level-name {
+            font-family: 'Press Start 2P', cursive;
+            color: #fff;
+            font-size: 8px;
+            line-height: 1.4;
+            max-width: 60%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .level-play-btn {
+            font-family: 'Press Start 2P', cursive;
+            background: #228B22;
+            color: #fff;
+            border: 2px solid #fff;
+            font-size: 8px;
+            padding: 6px 10px;
+            cursor: pointer;
+            box-shadow: 2px 2px 0 #000;
+            transition: all 0.1s;
+        }
+
+        .level-play-btn:active {
+            transform: translate(2px, 2px);
+            box-shadow: none;
+        }
+        
+        .btn-row {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 5px;
+        }
+
+        .btn-row .pixel-btn {
+            width: auto;
+            font-size: 8px;
+            padding: 10px;
+        }
+
+        .category-label { 
+            font-family: 'Press Start 2P'; 
+            font-size: 8px; 
+            color: #aaa; 
+            margin-top: 5px; 
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app-wrap">
+        <div class="menu-container" id="main-menu">
+            <h1 class="pixel-text">SONIC DASH</h1>
+            <!-- Default Play Button loads level_1.json -->
+            <button class="pixel-btn" onclick="navTo('game.html?file=levels/level_1.json')">PLAY GAME</button>
+            <button class="pixel-btn" onclick="openLevels()">ZONES</button>
+            <button class="pixel-btn" onclick="navTo('editor.html')">EDITOR</button>
+        </div>
+
+        <div class="modal-overlay" id="levels-modal">
+            <div class="retro-box modal-content">
+                <h2 style="font-family: 'Press Start 2P', cursive;">ZONES</h2>
+                <div id="level-list"></div>
+                <div class="btn-row">
+                    <label class="pixel-btn" style="text-align:center;">
+                        IMPORT JSON
+                        <!-- Fix for mobile: Accept all files, validate in JS later -->
+                        <input type="file" accept="*/*" style="display:none" onchange="importLevel(event)">
+                    </label>
+                    <button class="pixel-btn btn-red" onclick="closeLevels()">BACK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js"></script>
+
+    <script>
+        // Server Levels Configured exactly as requested
+        const SERVER_LEVELS =[
+            { name: "Zone 1", file: "levels/level_1.json" },
+            { name: "Zone 2", file: "levels/level_2.json" },
+            { name: "Zone 3", file: "levels/level_3.json" }
+        ];
+
+        function playRetroSound() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if(audioCtx.state === 'suspended') audioCtx.resume();
+                
+                const osc = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(1200, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(2200, audioCtx.currentTime + 0.08);
+                
+                gainNode.gain.setValueAtTime(0.4, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+                
+                osc.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.25);
+            } catch(e) {
+                console.log("Audio skipped.");
+            }
+        }
+
+        const bgm = new Audio('https://cdn.jsdelivr.net/gh/unsloth/sonic@main/sound/sonic.mp3');
+        bgm.loop = true;
+        bgm.volume = 0;
+        
+        let bgmStarted = false;
+        let isNavigating = false;
+        
+        // Persistent audio cookie equivalent
+        const savedTime = localStorage.getItem('sonic_bgm_time');
+        if (savedTime) {
+            bgm.currentTime = parseFloat(savedTime);
+        }
+
+        function initAudio() {
+            if(bgmStarted) return;
+            bgmStarted = true;
+            
+            bgm.play().then(() => {
+                let vol = 0;
+                let fade = setInterval(() => {
+                    if(isNavigating) { 
+                        clearInterval(fade); 
+                        return; 
+                    }
+                    vol += 0.05;
+                    if(vol >= 0.2) { 
+                        bgm.volume = 0.2; 
+                        clearInterval(fade); 
+                    } else {
+                        bgm.volume = vol;
+                    }
+                }, 250);
+            }).catch(e => { 
+                bgmStarted = false; 
+            });
+        }
+
+        // Save current music time constantly into local storage (modern cookies)
+        setInterval(() => {
+            if (bgmStarted && !bgm.paused && !isNavigating) {
+                localStorage.setItem('sonic_bgm_time', bgm.currentTime);
+            }
+        }, 100);
+
+        document.addEventListener('pointerdown', initAudio, { once: true });
+        document.addEventListener('click', initAudio, { once: true });
+
+        function navTo(url) {
+            if(isNavigating) return;
+            playRetroSound();
+            isNavigating = true;
+            
+            const failSafe = setTimeout(() => { 
+                window.location.href = url; 
+            }, 1100);
+            
+            let vol = bgm.volume || 0.2;
+            let fadeOutTimer = setInterval(() => {
+                vol -= 0.05;
+                if(vol <= 0) {
+                    bgm.volume = 0;
+                    localStorage.setItem('sonic_bgm_time', bgm.currentTime);
+                    clearInterval(fadeOutTimer);
+                    clearTimeout(failSafe);
+                    window.location.href = url;
+                } else {
+                    bgm.volume = Math.max(0, vol);
+                }
+            }, 250);
+        }
+
+        function openLevels() {
+            playRetroSound();
+            document.getElementById('levels-modal').classList.add('show');
+            renderLevels();
+        }
+
+        function closeLevels() {
+            playRetroSound();
+            document.getElementById('levels-modal').classList.remove('show');
+        }
+
+        // Handles loading custom JSON maps from local browser storage (acts exactly like cookies)
+        function getCustomLevels() {
+            try { 
+                return JSON.parse(localStorage.getItem('sonic_custom_levels')) ||[]; 
+            } catch(e) { 
+                return[]; 
+            }
+        }
+
+        function renderLevels() {
+            const list = document.getElementById('level-list');
+            list.innerHTML = '';
+            
+            // 1. Render Default/Server Levels
+            if(SERVER_LEVELS.length > 0) {
+                const sLabel = document.createElement('div');
+                sLabel.className = 'category-label'; 
+                sLabel.innerText = "- BUILT-IN -";
+                list.appendChild(sLabel);
+
+                SERVER_LEVELS.forEach(lvl => {
+                    list.appendChild(createLevelUI(lvl.name, `game.html?file=${encodeURIComponent(lvl.file)}`));
+                });
+            }
+
+            // 2. Render Imported Levels (From Browser Storage)
+            const customLevels = getCustomLevels();
+            const cLabel = document.createElement('div');
+            cLabel.className = 'category-label'; 
+            cLabel.innerText = "- IMPORTED -";
+            list.appendChild(cLabel);
+
+            if(customLevels.length === 0) {
+                const empty = document.createElement('p');
+                empty.style.cssText = "text-align:center; color:#ccc; font-family:'Press Start 2P'; font-size:8px; padding:10px;";
+                empty.innerText = "NO ZONES IMPORTED YET.";
+                list.appendChild(empty);
+            } else {
+                customLevels.forEach(lvl => {
+                    list.appendChild(createLevelUI(lvl.name, `game.html?level=${encodeURIComponent(lvl.name)}`));
+                });
+            }
+        }
+
+        function createLevelUI(name, url) {
+            const item = document.createElement('div');
+            item.className = 'level-item';
+            
+            const nameStr = document.createElement('span');
+            nameStr.className = 'level-name';
+            nameStr.textContent = name;
+
+            const playBtn = document.createElement('button');
+            playBtn.className = 'level-play-btn';
+            playBtn.textContent = 'PLAY';
+            playBtn.onclick = () => navTo(url);
+
+            item.appendChild(nameStr);
+            item.appendChild(playBtn);
+            
+            return item;
+        }
+
+        function importLevel(e) {
+            playRetroSound();
+            const file = e.target.files[0];
+            if(!file) return;
+            
+            // Validation step: Check if the name ends with .json
+            if (!file.name.toLowerCase().endsWith('.json')) {
+                alert("Please select a valid .json file generated by the editor!");
+                e.target.value = '';
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                try {
+                    const data = JSON.parse(evt.target.result);
+                    
+                    if(!Array.isArray(data)) {
+                        throw new Error("Invalid Level JSON (Must be an array of objects)");
+                    }
+                    
+                    const defaultName = file.name.replace('.json', '');
+                    const levelName = prompt("Enter a name for this custom zone:", defaultName);
+                    
+                    if(!levelName) return; 
+                    
+                    let levels = getCustomLevels();
+                    const idx = levels.findIndex(l => l.name === levelName);
+                    
+                    const levelPackage = { 
+                        name: levelName, 
+                        data: data 
+                    };
+
+                    if(idx > -1) {
+                        levels[idx] = levelPackage; 
+                    } else {
+                        levels.push(levelPackage); 
+                    }
+                    
+                    localStorage.setItem('sonic_custom_levels', JSON.stringify(levels));
+                    renderLevels();
+                    e.target.value = ''; 
+                    
+                } catch(err) {
+                    alert("INVALID JSON FORMAT! Ensure it was exported directly from the level editor.");
+                }
+            };
+            
+            reader.readAsText(file);
+        }
+    </script>
+</body>
+</html>
