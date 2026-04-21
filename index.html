@@ -237,7 +237,6 @@
             text-align: center;
         }
 
-        /* Styles for the new JSON text area */
         .pixel-textarea {
             font-family: 'Press Start 2P', 'Courier New', monospace;
             background: #000;
@@ -267,8 +266,32 @@
             border: 1px solid #000;
         }
 
-        .pixel-textarea::placeholder {
+        .pixel-textarea::placeholder, .pixel-input::placeholder {
             color: #555;
+        }
+
+        /* Input field for custom prompt */
+        .pixel-input {
+            font-family: 'Press Start 2P', 'Courier New', monospace;
+            background: #000;
+            color: #FFD700;
+            border: 2px solid #fff;
+            padding: 10px;
+            font-size: 8px;
+            width: 100%;
+            outline: none;
+            box-shadow: inset 2px 2px 0 rgba(255,255,255,0.2);
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        
+        .dialog-text {
+            font-family: 'Press Start 2P', cursive;
+            color: #fff;
+            font-size: 8px;
+            text-align: center;
+            line-height: 1.6;
+            margin-bottom: 15px;
         }
     </style>
 </head>
@@ -277,12 +300,12 @@
     <div id="app-wrap">
         <div class="menu-container" id="main-menu">
             <h1 class="pixel-text">SONIC DASH</h1>
-            <!-- Default Play Button loads level_1.json -->
             <button class="pixel-btn" onclick="navTo('game.html?file=levels/level_1.json')">PLAY GAME</button>
             <button class="pixel-btn" onclick="openLevels()">ZONES</button>
             <button class="pixel-btn" onclick="navTo('editor.html')">EDITOR</button>
         </div>
 
+        <!-- Levels Modal -->
         <div class="modal-overlay" id="levels-modal">
             <div class="retro-box modal-content">
                 <h2 style="font-family: 'Press Start 2P', cursive;">ZONES</h2>
@@ -296,14 +319,13 @@
                 </div>
 
                 <div class="btn-row">
-                    <!-- Changed from file manager input to open our text input modal -->
                     <button class="pixel-btn" onclick="openJsonModal()">IMPORT JSON</button>
                     <button class="pixel-btn btn-red" onclick="closeLevels()">BACK</button>
                 </div>
             </div>
         </div>
 
-        <!-- NEW MODAL for copy/pasting JSON -->
+        <!-- JSON Data Modal -->
         <div class="modal-overlay" id="json-modal" style="z-index: 110;">
             <div class="retro-box modal-content">
                 <h2 style="font-family: 'Press Start 2P', cursive;">JSON DATA</h2>
@@ -317,6 +339,28 @@
                 </div>
             </div>
         </div>
+
+        <!-- CUSTOM PROMPT MODAL -->
+        <div class="modal-overlay" id="prompt-modal" style="z-index: 200;">
+            <div class="retro-box modal-content" style="max-width: 280px; align-items: center;">
+                <p id="prompt-message" class="dialog-text"></p>
+                <input type="text" id="prompt-input" class="pixel-input" />
+                <div class="btn-row">
+                    <button class="pixel-btn" onclick="submitPrompt()">OK</button>
+                    <button class="pixel-btn btn-red" onclick="closePrompt()">CANCEL</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- CUSTOM ALERT MODAL -->
+        <div class="modal-overlay" id="alert-modal" style="z-index: 210;">
+            <div class="retro-box modal-content" style="max-width: 280px; align-items: center;">
+                <p id="alert-message" class="dialog-text"></p>
+                <div class="btn-row">
+                    <button class="pixel-btn" onclick="closeAlert()">OK</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js"></script>
@@ -327,6 +371,49 @@
             { name: "Zone 2", file: "levels/level_2.json" },
             { name: "Zone 3", file: "levels/level_3.json" }
         ];
+
+        // --- Custom Dialog System ---
+        let alertResolve = null;
+        let promptResolve = null;
+
+        function customAlert(msg) {
+            return new Promise(resolve => {
+                document.getElementById('alert-message').innerText = msg;
+                document.getElementById('alert-modal').classList.add('show');
+                alertResolve = resolve;
+            });
+        }
+
+        function closeAlert() {
+            playRetroSound();
+            document.getElementById('alert-modal').classList.remove('show');
+            if(alertResolve) alertResolve();
+        }
+
+        function customPrompt(msg, defaultVal = '') {
+            return new Promise(resolve => {
+                document.getElementById('prompt-message').innerText = msg;
+                const input = document.getElementById('prompt-input');
+                input.value = defaultVal;
+                document.getElementById('prompt-modal').classList.add('show');
+                input.focus();
+                promptResolve = resolve;
+            });
+        }
+
+        function submitPrompt() {
+            playRetroSound();
+            const val = document.getElementById('prompt-input').value.trim();
+            document.getElementById('prompt-modal').classList.remove('show');
+            if(promptResolve) promptResolve(val);
+        }
+
+        function closePrompt() {
+            playRetroSound();
+            document.getElementById('prompt-modal').classList.remove('show');
+            if(promptResolve) promptResolve(null);
+        }
+        // -----------------------------
 
         function playRetroSound() {
             try {
@@ -479,7 +566,6 @@
             btnContainer.style.display = 'flex';
             btnContainer.style.gap = '5px';
 
-            // Add a "JSON" button next to custom levels so the user can easily copy/backup existing imported levels
             if(isCustom) {
                 const jsonBtn = document.createElement('button');
                 jsonBtn.className = 'level-play-btn';
@@ -508,7 +594,6 @@
             return item;
         }
 
-        // New JSON Modals Logic
         function openJsonModal() {
             playRetroSound();
             document.getElementById('json-modal').classList.add('show');
@@ -520,31 +605,32 @@
             document.getElementById('json-modal').classList.remove('show');
         }
 
-        function copyJsonText() {
+        // Updated with async/await for Custom Alerts
+        async function copyJsonText() {
             playRetroSound();
             const textarea = document.getElementById('json-input');
             if(!textarea.value.trim()) {
-                alert("NOTHING TO COPY!");
+                await customAlert("NOTHING TO COPY!");
                 return;
             }
             
-            // Selects the text natively for mobile compatibility
             textarea.select();
             textarea.setSelectionRange(0, 99999);
             
             try {
                 document.execCommand('copy');
-                alert("COPIED TO CLIPBOARD!");
+                await customAlert("COPIED TO CLIPBOARD!");
             } catch(e) {
-                alert("COPY FAILED!");
+                await customAlert("COPY FAILED!");
             }
         }
 
-        function saveJsonText() {
+        // Updated with async/await for Custom Prompts/Alerts
+        async function saveJsonText() {
             playRetroSound();
             const jsonStr = document.getElementById('json-input').value.trim();
             if(!jsonStr) {
-                alert("PLEASE PASTE JSON FIRST!");
+                await customAlert("PLEASE PASTE JSON FIRST!");
                 return;
             }
 
@@ -555,7 +641,7 @@
                     throw new Error("Invalid Level JSON");
                 }
                 
-                const levelName = prompt("Enter a name for this custom zone:", "Custom Zone");
+                const levelName = await customPrompt("ENTER A NAME FOR THIS ZONE:", "CUSTOM ZONE");
                 if(!levelName) return; 
                 
                 let levels = getCustomLevels();
@@ -575,10 +661,10 @@
                 localStorage.setItem('sonic_custom_levels', JSON.stringify(levels));
                 renderLevels();
                 closeJsonModal();
-                alert("ZONE IMPORTED SUCCESSFULLY!");
+                await customAlert("ZONE IMPORTED SUCCESSFULLY!");
                 
             } catch(err) {
-                alert("INVALID JSON FORMAT! Ensure it was exported directly from the level editor.");
+                await customAlert("INVALID JSON FORMAT! ENSURE IT WAS EXPORTED FROM THE EDITOR.");
             }
         }
     </script>
