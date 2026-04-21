@@ -104,6 +104,26 @@
         #editor-touch-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 6; touch-action: none; display: none; }
         #touch-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; display: none; }
         .touch-zone { flex: 1; height: 100%; pointer-events: auto; }
+
+        /* Text Area for Exports */
+        .pixel-textarea {
+            font-family: 'Press Start 2P', 'Courier New', monospace;
+            background: #000;
+            color: #FFD700;
+            border: 2px solid #fff;
+            padding: 10px;
+            font-size: 8px;
+            width: 100%;
+            height: 120px;
+            resize: none;
+            outline: none;
+            box-shadow: inset 2px 2px 0 rgba(255,255,255,0.2);
+            line-height: 1.4;
+            margin-bottom: 10px;
+        }
+        .pixel-textarea::-webkit-scrollbar { width: 8px; }
+        .pixel-textarea::-webkit-scrollbar-track { background: #002D72; border-left: 1px solid #fff; }
+        .pixel-textarea::-webkit-scrollbar-thumb { background: #FFD700; border: 1px solid #000; }
     </style>
 <base target="_blank">
 </head>
@@ -114,7 +134,6 @@
     <div id="dom-layer"></div>
     <div id="damage-flash" class="damage-flash"></div>
 
-    <!-- Used strictly to translate raw touch coordinates safely for the editor -->
     <div id="editor-touch-layer"></div>
 
     <div id="touch-layer">
@@ -150,15 +169,12 @@
             </div>
         </div>
         <div class="editor-bottom">
-            <!-- Left Scroll Button -->
             <button class="pixel-btn btn-icon" id="btn-scroll-left">&lt;</button>
             
-            <!-- Item Scroller -->
             <div class="scroller-wrapper" id="item-scroller">
                 <!-- Injected via JS -->
             </div>
             
-            <!-- Right Scroll Button -->
             <button class="pixel-btn btn-icon" id="btn-scroll-right">&gt;</button>
         </div>
     </div>
@@ -170,8 +186,35 @@
             <button class="pixel-btn" id="btn-ed-continue" style="width:100%;">CONTINUE</button>
             <button class="pixel-btn" id="btn-ed-test" style="width:100%; color:#00FF00; border-color:#00FF00;">TEST MAP</button>
             <button class="pixel-btn" id="btn-ed-save" style="width:100%;">SAVE TO BROWSER</button>
-            <button class="pixel-btn" id="btn-ed-download" style="width:100%;">DOWNLOAD .JSON</button>
-            <button class="pixel-btn btn-red" id="btn-ed-quit" style="width:100%;">QUIT EDITOR</button>
+            <button class="pixel-btn" id="btn-ed-export" style="width:100%;">EXPORT .JSON</button>
+            <button class="pixel-btn btn-red" id="btn-ed-clear" style="width:100%;">CLEAR MAP</button>
+            <button class="pixel-btn btn-red" id="btn-ed-quit" style="width:100%; border-color:#555;">QUIT EDITOR</button>
+        </div>
+    </div>
+
+    <!-- Export JSON Modal -->
+    <div id="export-modal" class="modal-overlay">
+        <div class="retro-box">
+            <h2 class="modal-title">EXPORT MAP</h2>
+            <textarea id="export-textarea" class="pixel-textarea" readonly></textarea>
+            <div style="display:flex; gap:10px; width:100%;">
+                <button class="pixel-btn" id="btn-export-copy" style="flex:1;">COPY</button>
+                <button class="pixel-btn btn-red" id="btn-export-back" style="flex:1;">BACK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Clear Warning Modal -->
+    <div id="clear-modal" class="modal-overlay">
+        <div class="retro-box">
+            <h2 class="modal-title" style="color:#ff4c4c;">WARNING</h2>
+            <p style="color:#fff; font-size:10px; line-height:1.6; margin-bottom:10px; text-align:center;">
+                THIS WILL DELETE THE ENTIRE MAP.<br><br>ARE YOU SURE?
+            </p>
+            <div style="display:flex; gap:10px; width:100%;">
+                <button class="pixel-btn btn-red" id="btn-clear-yes" style="flex:1;">YES, CLEAR</button>
+                <button class="pixel-btn" id="btn-clear-no" style="flex:1;">CANCEL</button>
+            </div>
         </div>
     </div>
 
@@ -317,7 +360,7 @@ class EditorScene extends Phaser.Scene {
         
         document.getElementById('editor-ui-layer').style.display = 'flex';
         document.getElementById('play-ui-layer').style.display = 'none';
-        document.getElementById('editor-touch-layer').style.display = 'block'; // Editor touch capture ON
+        document.getElementById('editor-touch-layer').style.display = 'block';
         document.getElementById('touch-layer').style.display = 'none';
         domLayer.innerHTML = '';
         sfx.pauseBGM();
@@ -382,7 +425,7 @@ class EditorScene extends Phaser.Scene {
 
     setupEditorInputs() {
         const rawEditorLayer = document.getElementById('editor-touch-layer');
-        rawEditorLayer.replaceWith(rawEditorLayer.cloneNode(true)); // Clear all previous listeners cleanly
+        rawEditorLayer.replaceWith(rawEditorLayer.cloneNode(true)); 
         const editorLayer = document.getElementById('editor-touch-layer');
 
         let isDragging = false;
@@ -408,11 +451,10 @@ class EditorScene extends Phaser.Scene {
         editorLayer.addEventListener('pointerup', (e) => {
             isDragging = false;
             const dist = Math.hypot(e.offsetX - startX, e.offsetY - startY);
-            if (dist > 5) return; // Ignore if user dragged to pan the camera
+            if (dist > 5) return; 
 
             const cam = this.cameras.main;
             
-            // Using e.offsetX bypasses all Phaser/CSS rotation bugs, mapping 1:1 visually!
             const worldX = (e.offsetX - this.gameWidth / 2) / cam.zoom + cam.scrollX + this.gameWidth / 2;
             const worldY = (e.offsetY - this.gameHeight / 2) / cam.zoom + cam.scrollY + this.gameHeight / 2;
 
@@ -461,7 +503,6 @@ class EditorScene extends Phaser.Scene {
             scroller.appendChild(div);
         });
 
-        // Scrolling Button Handlers (Scrolls exactly 2 items / 140px smoothly)
         document.getElementById('btn-scroll-left').onclick = () => {
             scroller.scrollBy({ left: -140, behavior: 'smooth' });
         };
@@ -496,14 +537,47 @@ class EditorScene extends Phaser.Scene {
             btn.innerText = "SAVED!"; setTimeout(() => btn.innerText = "SAVE TO BROWSER", 1500);
         };
 
-        document.getElementById('btn-ed-download').onclick = () => {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(window.sonicLevelData));
-            const downloadAnchorNode = document.createElement('a');
-            downloadAnchorNode.setAttribute("href", dataStr);
-            downloadAnchorNode.setAttribute("download", "sonic_map.json");
-            document.body.appendChild(downloadAnchorNode); 
-            downloadAnchorNode.click();
-            downloadAnchorNode.remove();
+        // EXPORT MODAL LOGIC
+        document.getElementById('btn-ed-export').onclick = () => {
+            document.getElementById('editor-modal').style.display = 'none';
+            document.getElementById('export-textarea').value = JSON.stringify(window.sonicLevelData);
+            document.getElementById('export-modal').style.display = 'flex';
+        };
+
+        document.getElementById('btn-export-copy').onclick = () => {
+            const ta = document.getElementById('export-textarea');
+            if(!ta.value.trim()) return;
+            ta.select();
+            ta.setSelectionRange(0, 99999);
+            try {
+                document.execCommand('copy');
+                const btn = document.getElementById('btn-export-copy');
+                btn.innerText = "COPIED!";
+                setTimeout(() => btn.innerText = "COPY", 1500);
+            } catch(e) {}
+        };
+
+        document.getElementById('btn-export-back').onclick = () => {
+            document.getElementById('export-modal').style.display = 'none';
+            document.getElementById('editor-modal').style.display = 'flex';
+        };
+
+        // CLEAR MODAL LOGIC
+        document.getElementById('btn-ed-clear').onclick = () => {
+            document.getElementById('editor-modal').style.display = 'none';
+            document.getElementById('clear-modal').style.display = 'flex';
+        };
+
+        document.getElementById('btn-clear-yes').onclick = () => {
+            window.sonicLevelData =[];
+            domLayer.innerHTML = '';
+            this.renderMap();
+            document.getElementById('clear-modal').style.display = 'none';
+        };
+
+        document.getElementById('btn-clear-no').onclick = () => {
+            document.getElementById('clear-modal').style.display = 'none';
+            document.getElementById('editor-modal').style.display = 'flex';
         };
 
         document.getElementById('btn-ed-quit').onclick = () => window.location.href = 'https://unsloth.github.io/sonic';
@@ -525,7 +599,7 @@ class PlayScene extends Phaser.Scene {
         
         document.getElementById('editor-ui-layer').style.display = 'none';
         document.getElementById('play-ui-layer').style.display = 'flex';
-        document.getElementById('editor-touch-layer').style.display = 'none'; // Editor touch OFF during test mode
+        document.getElementById('editor-touch-layer').style.display = 'none'; 
         document.getElementById('touch-layer').style.display = 'flex';
         domLayer.innerHTML = '';
     }
