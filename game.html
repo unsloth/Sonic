@@ -296,9 +296,9 @@ class AudioEngine {
             this.ctx = new (window.AudioContext || window.webkitAudioContext)(); 
         } catch(e) {}
         
-        this.bgm = new Audio('https://cdn.jsdelivr.net/gh/unsloth/sonic@main/sound/sonic.mp3');
+        this.bgm = new Audio('https://cdn.jsdelivr.net/gh/unsloth/sonic@main/music/music.mp3');
         this.bgm.loop = true; 
-        this.bgm.volume = 0.29; 
+        this.bgm.volume = 0.27; 
         this.started = false;
     }
 
