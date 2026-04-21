@@ -154,10 +154,9 @@
             display: flex;
             flex-direction: column;
             gap: 8px;
-            scrollbar-width: none; /* Firefox */
+            scrollbar-width: none; 
         }
 
-        /* Hide Default Scrollbar */
         #level-list::-webkit-scrollbar {
             display: none; 
         }
@@ -193,7 +192,7 @@
             color: #fff;
             font-size: 8px;
             line-height: 1.4;
-            max-width: 60%;
+            max-width: 45%;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
@@ -227,6 +226,7 @@
             width: auto;
             font-size: 8px;
             padding: 10px;
+            flex: 1;
         }
 
         .category-label { 
@@ -235,6 +235,40 @@
             color: #aaa; 
             margin-top: 5px; 
             text-align: center;
+        }
+
+        /* Styles for the new JSON text area */
+        .pixel-textarea {
+            font-family: 'Press Start 2P', 'Courier New', monospace;
+            background: #000;
+            color: #FFD700;
+            border: 2px solid #fff;
+            padding: 10px;
+            font-size: 8px;
+            width: 100%;
+            height: 120px;
+            resize: none;
+            outline: none;
+            box-shadow: inset 2px 2px 0 rgba(255,255,255,0.2);
+            line-height: 1.4;
+        }
+
+        .pixel-textarea::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .pixel-textarea::-webkit-scrollbar-track {
+            background: #002D72;
+            border-left: 1px solid #fff;
+        }
+
+        .pixel-textarea::-webkit-scrollbar-thumb {
+            background: #FFD700;
+            border: 1px solid #000;
+        }
+
+        .pixel-textarea::placeholder {
+            color: #555;
         }
     </style>
 </head>
@@ -253,7 +287,6 @@
             <div class="retro-box modal-content">
                 <h2 style="font-family: 'Press Start 2P', cursive;">ZONES</h2>
                 
-                <!-- New Wrapper with custom scroll buttons -->
                 <div class="levels-wrapper">
                     <div id="level-list"></div>
                     <div class="scroll-controls">
@@ -263,12 +296,24 @@
                 </div>
 
                 <div class="btn-row">
-                    <label class="pixel-btn" style="text-align:center;">
-                        IMPORT JSON
-                        <!-- Fix for mobile: Accept all files, validate in JS later -->
-                        <input type="file" accept="*/*" style="display:none" onchange="importLevel(event)">
-                    </label>
+                    <!-- Changed from file manager input to open our text input modal -->
+                    <button class="pixel-btn" onclick="openJsonModal()">IMPORT JSON</button>
                     <button class="pixel-btn btn-red" onclick="closeLevels()">BACK</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- NEW MODAL for copy/pasting JSON -->
+        <div class="modal-overlay" id="json-modal" style="z-index: 110;">
+            <div class="retro-box modal-content">
+                <h2 style="font-family: 'Press Start 2P', cursive;">JSON DATA</h2>
+                <textarea id="json-input" class="pixel-textarea" placeholder="PASTE LEVEL JSON HERE..."></textarea>
+                <div class="btn-row">
+                    <button class="pixel-btn" onclick="copyJsonText()">COPY</button>
+                    <button class="pixel-btn" onclick="saveJsonText()">SAVE</button>
+                </div>
+                <div class="btn-row">
+                    <button class="pixel-btn btn-red" onclick="closeJsonModal()">BACK</button>
                 </div>
             </div>
         </div>
@@ -277,7 +322,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js"></script>
 
     <script>
-        // Server Levels Configured exactly as requested
         const SERVER_LEVELS =[
             { name: "Zone 1", file: "levels/level_1.json" },
             { name: "Zone 2", file: "levels/level_2.json" },
@@ -316,7 +360,6 @@
         let bgmStarted = false;
         let isNavigating = false;
         
-        // Persistent audio cookie equivalent
         const savedTime = localStorage.getItem('sonic_bgm_time');
         if (savedTime) {
             bgm.currentTime = parseFloat(savedTime);
@@ -346,7 +389,6 @@
             });
         }
 
-        // Save current music time constantly into local storage (modern cookies)
         setInterval(() => {
             if (bgmStarted && !bgm.paused && !isNavigating) {
                 localStorage.setItem('sonic_bgm_time', bgm.currentTime);
@@ -356,15 +398,12 @@
         document.addEventListener('pointerdown', initAudio, { once: true });
         document.addEventListener('click', initAudio, { once: true });
 
-        // MODIFIED: Navigate instantly, background music does not fade/stop.
         function navTo(url) {
             if(isNavigating) return;
             playRetroSound();
             isNavigating = true;
             
             localStorage.setItem('sonic_bgm_time', bgm.currentTime);
-            
-            // Allow the retro effect to quickly play, skip the music fadeout to fulfill constant BGM
             setTimeout(() => {
                 window.location.href = url;
             }, 300); 
@@ -381,14 +420,11 @@
             document.getElementById('levels-modal').classList.remove('show');
         }
 
-        // New function specifically mapped to your manual scroll arrows
         function scrollList(direction) {
             const list = document.getElementById('level-list');
-            // Scrolls down if direction = 1, up if direction = -1
             list.scrollBy({ top: direction * 60, behavior: 'smooth' });
         }
 
-        // Handles loading custom JSON maps from local browser storage
         function getCustomLevels() {
             try { 
                 return JSON.parse(localStorage.getItem('sonic_custom_levels')) ||[]; 
@@ -401,7 +437,6 @@
             const list = document.getElementById('level-list');
             list.innerHTML = '';
             
-            // 1. Render Default/Server Levels
             if(SERVER_LEVELS.length > 0) {
                 const sLabel = document.createElement('div');
                 sLabel.className = 'category-label'; 
@@ -409,11 +444,10 @@
                 list.appendChild(sLabel);
 
                 SERVER_LEVELS.forEach(lvl => {
-                    list.appendChild(createLevelUI(lvl.name, `game.html?file=${encodeURIComponent(lvl.file)}`));
+                    list.appendChild(createLevelUI(lvl.name, `game.html?file=${encodeURIComponent(lvl.file)}`, false));
                 });
             }
 
-            // 2. Render Imported Levels (From Browser Storage)
             const customLevels = getCustomLevels();
             const cLabel = document.createElement('div');
             cLabel.className = 'category-label'; 
@@ -427,80 +461,125 @@
                 list.appendChild(empty);
             } else {
                 customLevels.forEach(lvl => {
-                    list.appendChild(createLevelUI(lvl.name, `game.html?level=${encodeURIComponent(lvl.name)}`));
+                    list.appendChild(createLevelUI(lvl.name, `game.html?level=${encodeURIComponent(lvl.name)}`, true));
                 });
             }
         }
 
-        function createLevelUI(name, url) {
+        function createLevelUI(name, url, isCustom) {
             const item = document.createElement('div');
             item.className = 'level-item';
             
             const nameStr = document.createElement('span');
             nameStr.className = 'level-name';
             nameStr.textContent = name;
+            item.appendChild(nameStr);
+
+            const btnContainer = document.createElement('div');
+            btnContainer.style.display = 'flex';
+            btnContainer.style.gap = '5px';
+
+            // Add a "JSON" button next to custom levels so the user can easily copy/backup existing imported levels
+            if(isCustom) {
+                const jsonBtn = document.createElement('button');
+                jsonBtn.className = 'level-play-btn';
+                jsonBtn.style.background = '#002D72';
+                jsonBtn.textContent = 'JSON';
+                jsonBtn.onclick = () => {
+                    const levels = getCustomLevels();
+                    const lvl = levels.find(l => l.name === name);
+                    if(lvl) {
+                        playRetroSound();
+                        document.getElementById('json-modal').classList.add('show');
+                        document.getElementById('json-input').value = JSON.stringify(lvl.data);
+                    }
+                };
+                btnContainer.appendChild(jsonBtn);
+            }
 
             const playBtn = document.createElement('button');
             playBtn.className = 'level-play-btn';
             playBtn.textContent = 'PLAY';
             playBtn.onclick = () => navTo(url);
 
-            item.appendChild(nameStr);
-            item.appendChild(playBtn);
+            btnContainer.appendChild(playBtn);
+            item.appendChild(btnContainer);
             
             return item;
         }
 
-        function importLevel(e) {
+        // New JSON Modals Logic
+        function openJsonModal() {
             playRetroSound();
-            const file = e.target.files[0];
-            if(!file) return;
+            document.getElementById('json-modal').classList.add('show');
+            document.getElementById('json-input').value = '';
+        }
+
+        function closeJsonModal() {
+            playRetroSound();
+            document.getElementById('json-modal').classList.remove('show');
+        }
+
+        function copyJsonText() {
+            playRetroSound();
+            const textarea = document.getElementById('json-input');
+            if(!textarea.value.trim()) {
+                alert("NOTHING TO COPY!");
+                return;
+            }
             
-            // Validation step: Check if the name ends with .json
-            if (!file.name.toLowerCase().endsWith('.json')) {
-                alert("Please select a valid .json file generated by the editor!");
-                e.target.value = '';
+            // Selects the text natively for mobile compatibility
+            textarea.select();
+            textarea.setSelectionRange(0, 99999);
+            
+            try {
+                document.execCommand('copy');
+                alert("COPIED TO CLIPBOARD!");
+            } catch(e) {
+                alert("COPY FAILED!");
+            }
+        }
+
+        function saveJsonText() {
+            playRetroSound();
+            const jsonStr = document.getElementById('json-input').value.trim();
+            if(!jsonStr) {
+                alert("PLEASE PASTE JSON FIRST!");
                 return;
             }
 
-            const reader = new FileReader();
-            reader.onload = (evt) => {
-                try {
-                    const data = JSON.parse(evt.target.result);
-                    
-                    if(!Array.isArray(data)) {
-                        throw new Error("Invalid Level JSON (Must be an array of objects)");
-                    }
-                    
-                    const defaultName = file.name.replace('.json', '');
-                    const levelName = prompt("Enter a name for this custom zone:", defaultName);
-                    
-                    if(!levelName) return; 
-                    
-                    let levels = getCustomLevels();
-                    const idx = levels.findIndex(l => l.name === levelName);
-                    
-                    const levelPackage = { 
-                        name: levelName, 
-                        data: data 
-                    };
-
-                    if(idx > -1) {
-                        levels[idx] = levelPackage; 
-                    } else {
-                        levels.push(levelPackage); 
-                    }
-                    
-                    localStorage.setItem('sonic_custom_levels', JSON.stringify(levels));
-                    renderLevels();
-                    e.target.value = ''; 
-                    
-                } catch(err) {
-                    alert("INVALID JSON FORMAT! Ensure it was exported directly from the level editor.");
+            try {
+                const data = JSON.parse(jsonStr);
+                
+                if(!Array.isArray(data)) {
+                    throw new Error("Invalid Level JSON");
                 }
-            };
-            
-            reader.readAsText(file);
+                
+                const levelName = prompt("Enter a name for this custom zone:", "Custom Zone");
+                if(!levelName) return; 
+                
+                let levels = getCustomLevels();
+                const idx = levels.findIndex(l => l.name === levelName);
+                
+                const levelPackage = { 
+                    name: levelName, 
+                    data: data 
+                };
+
+                if(idx > -1) {
+                    levels[idx] = levelPackage; 
+                } else {
+                    levels.push(levelPackage); 
+                }
+                
+                localStorage.setItem('sonic_custom_levels', JSON.stringify(levels));
+                renderLevels();
+                closeJsonModal();
+                alert("ZONE IMPORTED SUCCESSFULLY!");
+                
+            } catch(err) {
+                alert("INVALID JSON FORMAT! Ensure it was exported directly from the level editor.");
+            }
         }
     </script>
 </body>
